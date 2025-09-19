@@ -51,8 +51,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock authentication - in real app, this would be an API call
-    if (email && password) {
+    // Mock authentication with test credentials
+    const validCredentials = [
+      { email: "admin@financeml.com", password: "123456" },
+      { email: "demo@empresa.com", password: "demo123" },
+      { email: "teste@teste.com", password: "teste" }
+    ];
+
+    const isValid = validCredentials.some(
+      cred => cred.email === email && cred.password === password
+    );
+
+    if (isValid) {
       const mockUser: User = {
         id: "1",
         name: "João Silva",
@@ -68,6 +78,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem("saas-user", JSON.stringify(mockUser));
       return true;
     }
+    
     return false;
   };
 

@@ -66,6 +66,61 @@ export const LoginPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Demo Credentials */}
+            <div className="mb-6 p-4 bg-muted/50 rounded-lg border">
+              <h3 className="font-medium text-sm mb-2 text-center">🧪 Credenciais para Teste</h3>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">admin@financeml.com</span>
+                  <span className="font-mono">123456</span>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setEmail("admin@financeml.com");
+                      setPassword("123456");
+                    }}
+                    disabled={isLoading}
+                  >
+                    Usar
+                  </Button>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">demo@empresa.com</span>
+                  <span className="font-mono">demo123</span>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setEmail("demo@empresa.com");
+                      setPassword("demo123");
+                    }}
+                    disabled={isLoading}
+                  >
+                    Usar
+                  </Button>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">teste@teste.com</span>
+                  <span className="font-mono">teste</span>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setEmail("teste@teste.com");
+                      setPassword("teste");
+                    }}
+                    disabled={isLoading}
+                  >
+                    Usar
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <Alert variant="destructive">
@@ -112,6 +167,33 @@ export const LoginPage = () => {
                 ) : (
                   "Entrar"
                 )}
+              </Button>
+
+              {/* Quick Demo Login */}
+              <Button 
+                type="button"
+                variant="secondary" 
+                className="w-full"
+                disabled={isLoading}
+                onClick={async () => {
+                  setEmail("admin@financeml.com");
+                  setPassword("123456");
+                  setIsLoading(true);
+                  setError("");
+                  
+                  try {
+                    const success = await login("admin@financeml.com", "123456");
+                    if (success) {
+                      navigate(from, { replace: true });
+                    }
+                  } catch (err) {
+                    setError("Erro ao fazer login. Tente novamente.");
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+              >
+                🚀 Login Rápido (Demo)
               </Button>
 
               <div className="text-center">
