@@ -57,7 +57,7 @@ export function AppSidebar() {
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive 
       ? "bg-primary text-primary-foreground font-medium" 
-      : "hover:bg-muted/50 transition-smooth";
+      : "text-foreground hover:bg-muted hover:text-foreground transition-smooth";
 
   const getUserInitials = () => {
     if (!user) return "U";
@@ -113,8 +113,8 @@ export function AppSidebar() {
                       end 
                       className={getNavCls}
                     >
-                      <item.icon className="h-4 w-4" />
-                      {!isCollapsed && <span>{item.title}</span>}
+                      <item.icon className="h-4 w-4 flex-shrink-0" />
+                      {!isCollapsed && <span className="ml-2">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -141,17 +141,17 @@ export function AppSidebar() {
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </div>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-56 bg-popover border shadow-lg z-50">
                 <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <NavLink to="/account" className="flex items-center">
+                  <NavLink to="/account" className="flex items-center text-popover-foreground hover:bg-muted">
                     <User className="mr-2 h-4 w-4" />
                     Configurações
                   </NavLink>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <NavLink to="/notifications" className="flex items-center">
+                  <NavLink to="/notifications" className="flex items-center text-popover-foreground hover:bg-muted">
                     <Bell className="mr-2 h-4 w-4" />
                     Notificações
                   </NavLink>
@@ -159,7 +159,7 @@ export function AppSidebar() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={logout}
-                  className="text-destructive cursor-pointer"
+                  className="text-destructive cursor-pointer hover:bg-destructive/10"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Sair
@@ -175,10 +175,10 @@ export function AppSidebar() {
                   </AvatarFallback>
                 </Avatar>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-56 bg-popover border shadow-lg z-50">
                 <DropdownMenuLabel>
                   <div>
-                    <p className="font-medium">{user?.name}</p>
+                    <p className="font-medium text-popover-foreground">{user?.name}</p>
                     <p className="text-xs text-muted-foreground font-normal">
                       {user?.company.name}
                     </p>
@@ -186,13 +186,13 @@ export function AppSidebar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <NavLink to="/account" className="flex items-center">
+                  <NavLink to="/account" className="flex items-center text-popover-foreground hover:bg-muted">
                     <User className="mr-2 h-4 w-4" />
                     Configurações
                   </NavLink>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <NavLink to="/notifications" className="flex items-center">
+                  <NavLink to="/notifications" className="flex items-center text-popover-foreground hover:bg-muted">
                     <Bell className="mr-2 h-4 w-4" />
                     Notificações
                   </NavLink>
@@ -200,7 +200,7 @@ export function AppSidebar() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={logout}
-                  className="text-destructive cursor-pointer"
+                  className="text-destructive cursor-pointer hover:bg-destructive/10"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Sair
