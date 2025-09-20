@@ -1,24 +1,15 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  company: {
-    id: string;
-    name: string;
-    cnpj: string;
-  };
-}
+import { apiService, User, LoginRequest, RegisterRequest } from "@/services/api";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (userData: RegisterData) => Promise<boolean>;
   logout: () => void;
-  updateUser: (userData: Partial<User>) => void;
-  updateCompany: (companyData: { name: string; cnpj: string }) => void;
+  updateUser: (userData: Partial<User>) => Promise<void>;
+  updateCompany: (companyData: { name: string; cnpj: string }) => Promise<void>;
 }
 
 interface RegisterData {
@@ -41,98 +32,112 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for saved user in localStorage on mount
-    const savedUser = localStorage.getItem("saas-user");
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
+    // Check for saved token and fetch user data
+    const initializeAuth = async () => {
+      if (apiService.isAuthenticated()) {
+        try {
+          const userData = await apiService.getCurrentUser();
+          setUser(userData);
+        } catch (error) {
+          console.error('Failed to fetch user data:', error);
+          apiService.logout();
+        }
+      }
+      setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock authentication with test credentials
-    const validCredentials = [
-      { email: "admin@financeml.com", password: "123456" },
-      { email: "demo@empresa.com", password: "demo123" },
-      { email: "teste@teste.com", password: "teste" }
-    ];
-
-    const isValid = validCredentials.some(
-      cred => cred.email === email && cred.password === password
-    );
-
-    if (isValid) {
-      const mockUser: User = {
-        id: "1",
-        name: "João Silva",
-        email: email,
-        company: {
-          id: "1",
-          name: "Empresa Exemplo LTDA",
-          cnpj: "12.345.678/0001-90"
-        }
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem("saas-user", JSON.stringify(mockUser));
+    try {
+      await apiService.login({ email, password });
+      const userData = await apiService.getCurrentUser();
+      setUser(userData);
       return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      return false;
     }
-    
-    return false;
   };
 
   const register = async (userData: RegisterData): Promise<boolean> => {
-    // Mock registration - in real app, this would be an API call
-    const newUser: User = {
-      id: Date.now().toString(),
-      name: userData.responsibleName,
-      email: userData.email,
-      company: {
-        id: Date.now().toString(),
-        name: userData.companyName,
-        cnpj: userData.cnpj
-      }
-    };
-    
-    setUser(newUser);
-    localStorage.setItem("saas-user", JSON.stringify(newUser));
-    return true;
+    try {
+      const newUser = await apiService.register({
+        name: userData.responsibleName,
+        email: userData.email,
+        password: userData.password,
+        company_name: userData.companyName,
+        company_cnpj: userData.cnpj,
+      });
+      
+      setUser(newUser);
+      return true;
+    } catch (error) {
+      console.error('Registration failed:', error);
+      return false;
+    }
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("saas-user");
+    apiService.logout();
   };
 
-  const updateUser = (userData: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...userData };
-      setUser(updatedUser);
-      localStorage.setItem("saas-user", JSON.stringify(updatedUser));
+  const updateUser = async (userData: Partial<User>): Promise<void> => {
+    if (!user) return;
+    
+    try {
+      if (userData.name) {
+        const updatedUser = await apiService.updateUser(userData.name);
+        setUser(updatedUser);
+      }
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      throw error;
     }
   };
 
-  const updateCompany = (companyData: { name: string; cnpj: string }) => {
-    if (user) {
-      const updatedUser = {
+  const updateCompany = async (companyData: { name: string; cnpj: string }): Promise<void> => {
+    if (!user) return;
+    
+    try {
+      const updatedCompany = await apiService.updateCompany({
+        company_name: companyData.name,
+        company_cnpj: companyData.cnpj,
+      });
+      
+      setUser({
         ...user,
-        company: { ...user.company, ...companyData }
-      };
-      setUser(updatedUser);
-      localStorage.setItem("saas-user", JSON.stringify(updatedUser));
+        company: updatedCompany,
+      });
+    } catch (error) {
+      console.error('Failed to update company:', error);
+      throw error;
     }
   };
 
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
+    loading,
     login,
     register,
     logout,
     updateUser,
     updateCompany,
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

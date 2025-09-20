@@ -56,8 +56,8 @@ export function AppSidebar() {
   const isActive = (path: string) => currentPath === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive 
-      ? "bg-primary text-primary-foreground font-medium" 
-      : "text-foreground hover:bg-muted hover:text-foreground transition-smooth";
+      ? "bg-primary/10 text-primary border-r-2 border-primary font-medium" 
+      : "text-muted-foreground hover:bg-primary/5 hover:text-primary transition-smooth";
 
   const getUserInitials = () => {
     if (!user) return "U";
@@ -100,7 +100,7 @@ export function AppSidebar() {
 
         {/* Navigation */}
         <SidebarGroup className="flex-1">
-          <SidebarGroupLabel className={isCollapsed ? "sr-only" : ""}>
+          <SidebarGroupLabel className={`${isCollapsed ? "sr-only" : ""} text-primary font-semibold`}>
             Navegação
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -135,7 +135,7 @@ export function AppSidebar() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-medium">{user?.name}</p>
+                    <p className="text-sm font-medium text-primary">{user?.name}</p>
                     <p className="text-xs text-muted-foreground">{user?.company.name}</p>
                   </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -178,7 +178,7 @@ export function AppSidebar() {
               <DropdownMenuContent align="end" className="w-56 bg-popover border shadow-lg z-50">
                 <DropdownMenuLabel>
                   <div>
-                    <p className="font-medium text-popover-foreground">{user?.name}</p>
+                    <p className="font-medium text-primary">{user?.name}</p>
                     <p className="text-xs text-muted-foreground font-normal">
                       {user?.company.name}
                     </p>

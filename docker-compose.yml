@@ -1,0 +1,66 @@
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15
+    container_name: marketplace_db
+    environment:
+      POSTGRES_DB: marketplace_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d marketplace_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: marketplace_backend
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/marketplace_db
+      SECRET_KEY: your-secret-key-change-in-production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      MERCADO_LIVRE_CLIENT_ID: 6987936494418444
+      MERCADO_LIVRE_CLIENT_SECRET: puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
+      MERCADO_LIVRE_REDIRECT_URI: https://95e3e8757a41.ngrok-free.app/api/mercado-livre/auth/callback
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend (for development)
+  frontend:
+    image: node:18-alpine
+    container_name: marketplace_frontend
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=https://95e3e8757a41.ngrok-free.app
+
+volumes:
+  postgres_data:

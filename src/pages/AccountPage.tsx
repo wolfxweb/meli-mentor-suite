@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,13 @@ import {
   CheckCircle,
   AlertTriangle,
   Save,
-  Unlink
+  Unlink,
+  ExternalLink,
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { mercadoLivreApi, IntegrationStatus, MercadoLivreUserInfo } from "@/services/mercadoLivreApi";
 
 export const AccountPage = () => {
   const { user, updateUser, updateCompany } = useAuth();
@@ -38,6 +42,139 @@ export const AccountPage = () => {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+
+  // Estados para integração Mercado Livre
+  const [mlIntegration, setMlIntegration] = useState<IntegrationStatus | null>(null);
+  const [mlUserInfo, setMlUserInfo] = useState<MercadoLivreUserInfo | null>(null);
+  const [isConnectingML, setIsConnectingML] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+
+  // Carregar status da integração ao montar o componente
+  useEffect(() => {
+    loadIntegrationStatus();
+    
+    // Verificar se há callback do OAuth2
+    if (mercadoLivreApi.hasCallbackInUrl()) {
+      handleOAuthCallback();
+    }
+  }, []);
+
+  const loadIntegrationStatus = async () => {
+    try {
+      const status = await mercadoLivreApi.getIntegrationStatus();
+      setMlIntegration(status);
+    } catch (error) {
+      console.error('Erro ao carregar status da integração:', error);
+    }
+  };
+
+  const handleOAuthCallback = async () => {
+    setIsConnectingML(true);
+    try {
+      const result = await mercadoLivreApi.processCallback();
+      setMlUserInfo(result.user_info);
+      
+      toast({
+        title: "Sucesso!",
+        description: "Conta do Mercado Livre conectada com sucesso!",
+      });
+      
+      // Limpar parâmetros da URL
+      mercadoLivreApi.clearUrlParams();
+      
+      // Recarregar status da integração
+      await loadIntegrationStatus();
+      
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao conectar com o Mercado Livre",
+        variant: "destructive",
+      });
+    } finally {
+      setIsConnectingML(false);
+    }
+  };
+
+  const handleConnectMercadoLivre = async () => {
+    setIsConnectingML(true);
+    try {
+      await mercadoLivreApi.initiateOAuthFlow();
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao iniciar conexão com Mercado Livre",
+        variant: "destructive",
+      });
+      setIsConnectingML(false);
+    }
+  };
+
+  const handleDisconnectML = async () => {
+    try {
+      await mercadoLivreApi.disconnectIntegration();
+      setMlIntegration({ connected: false });
+      setMlUserInfo(null);
+      
+      toast({
+        title: "Conta desconectada",
+        description: "Sua conta do Mercado Livre foi desconectada com sucesso",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao desconectar conta do Mercado Livre",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    try {
+      const result = await mercadoLivreApi.testConnection();
+      
+      if (result.status === 'success') {
+        setMlUserInfo(result.user_info || null);
+        toast({
+          title: "Conexão OK",
+          description: "Conexão com Mercado Livre funcionando perfeitamente!",
+        });
+      } else {
+        toast({
+          title: "Problema na conexão",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Erro no teste",
+        description: "Erro ao testar conexão com Mercado Livre",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  const handleRefreshToken = async () => {
+    try {
+      await mercadoLivreApi.refreshToken();
+      await loadIntegrationStatus();
+      
+      toast({
+        title: "Token renovado",
+        description: "Token de acesso renovado com sucesso!",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao renovar token de acesso",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,12 +243,6 @@ export const AccountPage = () => {
     }
   };
 
-  const handleDisconnectML = () => {
-    toast({
-      title: "Conta desconectada",
-      description: "Sua conta do Mercado Livre foi desconectada com sucesso",
-    });
-  };
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -303,57 +434,143 @@ export const AccountPage = () => {
                 <CardTitle className="flex items-center space-x-2">
                   <LinkIcon className="w-5 h-5" />
                   <span>Mercado Livre</span>
-                  <Badge className="bg-success text-success-foreground">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Conectado
-                  </Badge>
+                  {mlIntegration?.connected ? (
+                    <Badge className="bg-success text-success-foreground">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      Desconectado
+                    </Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>
                   Integração com sua conta do Mercado Livre para sincronização de produtos e pedidos
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Sua conta está conectada e sincronizando normalmente. 
-                    Última sincronização: há 5 minutos
-                  </AlertDescription>
-                </Alert>
+                {isConnectingML ? (
+                  <Alert>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <AlertDescription>
+                      Conectando com o Mercado Livre...
+                    </AlertDescription>
+                  </Alert>
+                ) : mlIntegration?.connected ? (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {mlUserInfo ? (
+                        <>
+                          Conectado como: <strong>{mlUserInfo.nickname}</strong> ({mlUserInfo.email})
+                          <br />
+                          Token expira em: {mlIntegration.expires_at ? new Date(mlIntegration.expires_at).toLocaleString('pt-BR') : 'N/A'}
+                        </>
+                      ) : (
+                        'Sua conta está conectada e sincronizando normalmente.'
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      Nenhuma integração ativa. Conecte sua conta do Mercado Livre para começar a sincronizar produtos e pedidos.
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <p className="font-medium">Status da Conexão</p>
                     <p className="text-sm text-muted-foreground">
-                      Produtos e pedidos sendo sincronizados automaticamente
+                      {mlIntegration?.connected 
+                        ? "Produtos e pedidos sendo sincronizados automaticamente"
+                        : "Conecte sua conta para começar a sincronização"
+                      }
                     </p>
                   </div>
-                  <Button 
-                    variant="destructive" 
-                    size="sm"
-                    onClick={handleDisconnectML}
-                  >
-                    <Unlink className="w-4 h-4 mr-2" />
-                    Desconectar
-                  </Button>
+                  <div className="flex space-x-2">
+                    {mlIntegration?.connected ? (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleTestConnection}
+                          disabled={isTestingConnection}
+                        >
+                          {isTestingConnection ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                          )}
+                          Testar
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleRefreshToken}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Renovar Token
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={handleDisconnectML}
+                        >
+                          <Unlink className="w-4 h-4 mr-2" />
+                          Desconectar
+                        </Button>
+                      </>
+                    ) : (
+                      <Button 
+                        onClick={handleConnectMercadoLivre}
+                        disabled={isConnectingML}
+                        className="bg-primary hover:bg-primary-hover"
+                      >
+                        {isConnectingML ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                        )}
+                        Conectar Mercado Livre
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
-                <Separator />
+                {mlIntegration?.connected && (
+                  <>
+                    <Separator />
 
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="text-center p-4 border rounded-lg">
-                    <p className="text-2xl font-bold text-primary">156</p>
-                    <p className="text-sm text-muted-foreground">Produtos Sincronizados</p>
-                  </div>
-                  <div className="text-center p-4 border rounded-lg">
-                    <p className="text-2xl font-bold text-secondary">89</p>
-                    <p className="text-sm text-muted-foreground">Pedidos Este Mês</p>
-                  </div>
-                  <div className="text-center p-4 border rounded-lg">
-                    <p className="text-2xl font-bold text-success">100%</p>
-                    <p className="text-sm text-muted-foreground">Taxa de Sincronização</p>
-                  </div>
-                </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="text-center p-4 border rounded-lg">
+                        <p className="text-2xl font-bold text-primary">
+                          {mlUserInfo?.id ? '✓' : '-'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">Conta Verificada</p>
+                      </div>
+                      <div className="text-center p-4 border rounded-lg">
+                        <p className="text-2xl font-bold text-secondary">
+                          {mlIntegration.expires_at ? 
+                            Math.ceil((new Date(mlIntegration.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) + ' dias' : 
+                            '-'
+                          }
+                        </p>
+                        <p className="text-sm text-muted-foreground">Token Válido</p>
+                      </div>
+                      <div className="text-center p-4 border rounded-lg">
+                        <p className="text-2xl font-bold text-success">
+                          {mlIntegration.is_active ? '100%' : '0%'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">Status Ativo</p>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
