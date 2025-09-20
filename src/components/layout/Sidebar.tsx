@@ -38,7 +38,7 @@ import {
 
 const navigationItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
-  { title: "Produtos", url: "/products", icon: Package },
+  { title: "Anúncios", url: "/products", icon: Package },
   { title: "Financeiro", url: "/financial", icon: DollarSign },
   { title: "Previsões", url: "/forecasts", icon: TrendingUp },
   { title: "Contas", url: "/accounts", icon: Calendar },

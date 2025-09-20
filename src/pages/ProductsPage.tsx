@@ -68,6 +68,16 @@ interface MercadoLivreProduct {
   user_product_id?: string;
   family_id?: string;
   inventory_id?: string; // Campo para identificar produtos Full
+  // Campos para preço promocional
+  sale_price?: number;
+  deal_ids?: string[];
+  // Campos para posição no catálogo
+  catalog_position?: number;
+  catalog_competitors?: Array<{
+    id: string;
+    price: number;
+    position: number;
+  }>;
 }
 
 interface ProductForm {
@@ -239,6 +249,122 @@ export const ProductsPage = () => {
     return hasInventoryId || (hasSales && (hasFullTags || isFullListing));
   };
 
+  const isCatalogProduct = (product: MercadoLivreProduct) => {
+    // Verifica se é um produto de catálogo baseado em:
+    // 1. catalog_listing = true
+    // 2. catalog_product_id presente
+    return product.catalog_listing === true || !!product.catalog_product_id;
+  };
+
+  const isOnSale = (product: MercadoLivreProduct) => {
+    // Verifica se o produto está em promoção baseado na documentação do Mercado Livre:
+    // 1. original_price presente e maior que price (indica desconto ativo)
+    // 2. deal_ids presente (indica promoções ativas como DEAL, LIGHTNING, DOD, etc.)
+    // 3. sale_price presente e diferente do price (campo alternativo)
+    // 4. base_price diferente do price (pode indicar preço promocional)
+    
+    const hasOriginalPriceDiscount = product.original_price && product.original_price > product.price;
+    const hasActiveDeals = product.deal_ids && product.deal_ids.length > 0;
+    const hasSalePrice = product.sale_price && product.sale_price !== product.price;
+    const hasBasePriceDifference = product.base_price && product.base_price !== product.price;
+    
+    return hasOriginalPriceDiscount || hasActiveDeals || hasSalePrice || hasBasePriceDifference;
+  };
+
+  const getCatalogPosition = (product: MercadoLivreProduct) => {
+    // Determina a posição no catálogo baseado em:
+    // 1. catalog_position (posição atual)
+    // 2. Comparação com competidores
+    if (!product.catalog_position && !product.catalog_competitors) {
+      return { position: 'N/A', status: 'unknown' };
+    }
+
+    const position = product.catalog_position || 1;
+    
+    if (position === 1) {
+      return { position: '1º', status: 'winning' };
+    } else if (position <= 3) {
+      return { position: `${position}º`, status: 'competing' };
+    } else {
+      return { position: `${position}º`, status: 'losing' };
+    }
+  };
+
+  const getPriceDisplay = (product: MercadoLivreProduct) => {
+    if (!isOnSale(product)) {
+      // Sem desconto - mostra apenas o preço normal
+      return (
+        <span className="font-bold text-green-600">
+          R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        </span>
+      );
+    }
+
+    // Com desconto - mostra preço atual, original riscado e percentual
+    let originalPrice = product.original_price || product.base_price || product.price;
+    
+    // Se não há original_price, mas há base_price diferente do price, usa base_price como original
+    if (!product.original_price && product.base_price && product.base_price !== product.price) {
+      originalPrice = product.base_price;
+    }
+    
+    // Calcula o desconto
+    const discount = originalPrice > product.price ? 
+      Math.round(((originalPrice - product.price) / originalPrice) * 100) : 0;
+
+    return (
+      <div className="text-right">
+        <div className="font-bold text-red-600">
+          R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        </div>
+        {originalPrice > product.price && (
+          <div className="text-xs text-gray-500 line-through">
+            R$ {originalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+        )}
+        {discount > 0 && (
+          <div className="text-xs text-red-600 font-medium">
+            -{discount}%
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const getCatalogPositionBadge = (product: MercadoLivreProduct) => {
+    const { position, status } = getCatalogPosition(product);
+
+    switch (status) {
+      case 'winning':
+        return (
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            {position} - Ganhando
+          </Badge>
+        );
+      case 'competing':
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            {position} - Competindo
+          </Badge>
+        );
+      case 'losing':
+        return (
+          <Badge className="bg-red-100 text-red-800 hover:bg-red-200">
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            {position} - Perdendo
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="text-gray-500">
+            {position}
+          </Badge>
+        );
+    }
+  };
+
   const filteredProducts = products.filter(product => {
     // Filtro por termo de busca
     const matchesSearch = product.title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -331,12 +457,6 @@ export const ProductsPage = () => {
     );
   };
 
-  const isCatalogProduct = (product: MercadoLivreProduct) => {
-    // Verifica se é um produto de catálogo baseado em:
-    // 1. catalog_listing = true
-    // 2. catalog_product_id presente
-    return product.catalog_listing === true || !!product.catalog_product_id;
-  };
 
   const getCatalogBadge = (product: MercadoLivreProduct) => {
     if (isCatalogProduct(product)) {
@@ -500,32 +620,32 @@ export const ProductsPage = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-            Produtos
+            Anúncios
           </h1>
           <p className="text-muted-foreground mt-2">
-            Gerencie seus produtos no Mercado Livre
+            Gerencie seus anúncios cadastrados no Mercado Livre
           </p>
         </div>
         <Button onClick={() => setShowCreateForm(true)} className="gap-2">
           <Plus className="h-4 w-4" />
-          Novo Produto
+          Novo Anúncio
         </Button>
       </div>
 
       {/* Search and Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
-            Buscar Produtos
-          </CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Buscar Anúncios
+            </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="flex gap-4">
               <div className="flex-1">
                 <Input
-                  placeholder="Buscar por título do produto..."
+                  placeholder="Buscar por título do anúncio..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -663,29 +783,39 @@ export const ProductsPage = () => {
                       )}
                     </div>
                     {fullFilter === 'all' && catalogFilter === 'all' && statusFilter === 'all' && (
-                      <div className="flex gap-4 text-sm text-gray-600">
-                        <span>Com Full: {products.filter(p => hasFullSales(p)).length}</span>
-                        <span>Sem Full: {products.filter(p => !hasFullSales(p)).length}</span>
-                        <span>Catálogo: {products.filter(p => isCatalogProduct(p)).length}</span>
-                        <span>Normal: {products.filter(p => !isCatalogProduct(p)).length}</span>
-                        <span>Ativos: {products.filter(p => p.status === 'active').length}</span>
-                        <span>Pausados: {products.filter(p => p.status === 'paused').length}</span>
-                        <span>Fechados: {products.filter(p => p.status === 'closed').length}</span>
+                      <div className="space-y-2">
+                        <div className="flex gap-4 text-sm text-gray-600">
+                          <span>Com Full: {products.filter(p => hasFullSales(p)).length}</span>
+                          <span>Sem Full: {products.filter(p => !hasFullSales(p)).length}</span>
+                          <span>Catálogo: {products.filter(p => isCatalogProduct(p)).length}</span>
+                          <span>Normal: {products.filter(p => !isCatalogProduct(p)).length}</span>
+                        </div>
+                        <div className="flex gap-4 text-sm text-gray-600">
+                          <span>Com Desconto: {products.filter(p => isOnSale(p)).length}</span>
+                          <span>Preço Normal: {products.filter(p => !isOnSale(p)).length}</span>
+                          <span>Ganhando: {products.filter(p => getCatalogPosition(p).status === 'winning').length}</span>
+                          <span>Competindo: {products.filter(p => getCatalogPosition(p).status === 'competing').length}</span>
+                          <span>Perdendo: {products.filter(p => getCatalogPosition(p).status === 'losing').length}</span>
+                        </div>
+                        <div className="flex gap-4 text-sm text-gray-600">
+                          <span>Ativos: {products.filter(p => p.status === 'active').length}</span>
+                          <span>Pausados: {products.filter(p => p.status === 'paused').length}</span>
+                          <span>Fechados: {products.filter(p => p.status === 'closed').length}</span>
+                        </div>
                       </div>
                     )}
                   </div>
             </div>
-          </div>
         </CardContent>
       </Card>
 
       {/* Products List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Meus Produtos ({filteredProducts.length} de {totalProducts})
-          </CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Meus Anúncios ({filteredProducts.length} de {totalProducts})
+            </CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -693,19 +823,19 @@ export const ProductsPage = () => {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhum produto encontrado</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm ? "Tente ajustar sua busca" : "Comece criando seu primeiro produto"}
-              </p>
-              {!searchTerm && (
-                <Button onClick={() => setShowCreateForm(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Produto
-                </Button>
-              )}
-            </div>
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Nenhum anúncio encontrado</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {searchTerm ? "Tente ajustar sua busca" : "Comece criando seu primeiro anúncio"}
+                  </p>
+                  {!searchTerm && (
+                    <Button onClick={() => setShowCreateForm(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Criar Anúncio
+                    </Button>
+                  )}
+                </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -717,7 +847,7 @@ export const ProductsPage = () => {
                       onClick={() => handleSort('title')}
                     >
                       <div className="flex items-center gap-2">
-                        Produto
+                        Anúncio
                         {getSortIcon('title')}
                       </div>
                     </TableHead>
@@ -730,6 +860,7 @@ export const ProductsPage = () => {
                         {getSortIcon('price')}
                       </div>
                     </TableHead>
+                    <TableHead className="text-center">Posição Catálogo</TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-muted/50 text-center"
                       onClick={() => handleSort('available_quantity')}
@@ -787,9 +918,10 @@ export const ProductsPage = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className="font-bold text-green-600">
-                          R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
+                        {getPriceDisplay(product)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {getCatalogPositionBadge(product)}
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="font-medium">{product.available_quantity}</span>
@@ -870,16 +1002,16 @@ export const ProductsPage = () => {
           
           {/* Results Summary */}
           {!isLoading && sortedProducts.length > 0 && (
-            <div className="flex items-center justify-between mt-6 pt-4 border-t">
-              <div className="text-sm text-muted-foreground">
-                Mostrando {sortedProducts.length} produtos filtrados de {totalProducts} total
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {fullFilter === 'full' && `✅ ${sortedProducts.length} produtos com vendas no Full`}
-                {fullFilter === 'no-full' && `⚠️ ${sortedProducts.length} produtos sem vendas no Full`}
-                {fullFilter === 'all' && `📦 ${sortedProducts.length} produtos exibidos`}
-              </div>
-            </div>
+                <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Mostrando {sortedProducts.length} anúncios filtrados de {totalProducts} total
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {fullFilter === 'full' && `✅ ${sortedProducts.length} anúncios com vendas no Full`}
+                    {fullFilter === 'no-full' && `⚠️ ${sortedProducts.length} anúncios sem vendas no Full`}
+                    {fullFilter === 'all' && `📦 ${sortedProducts.length} anúncios exibidos`}
+                  </div>
+                </div>
           )}
         </CardContent>
       </Card>
@@ -888,20 +1020,20 @@ export const ProductsPage = () => {
       {showCreateForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <CardHeader>
-              <CardTitle>Criar Novo Produto</CardTitle>
-              <CardDescription>
-                Preencha as informações do produto para publicar no Mercado Livre
-              </CardDescription>
-            </CardHeader>
+                <CardHeader>
+                  <CardTitle>Criar Novo Anúncio</CardTitle>
+                  <CardDescription>
+                    Preencha as informações do anúncio para publicar no Mercado Livre
+                  </CardDescription>
+                </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="title">Título do Produto</Label>
+                <Label htmlFor="title">Título do Anúncio</Label>
                 <Input
                   id="title"
                   value={productForm.title}
                   onChange={(e) => setProductForm({ ...productForm, title: e.target.value })}
-                  placeholder="Ex: Smartphone Samsung Galaxy S21"
+                  placeholder="Ex: Smartphone Samsung Galaxy S21 - Novo"
                 />
               </div>
               
@@ -964,19 +1096,19 @@ export const ProductsPage = () => {
               </div>
 
               <div className="flex gap-2 pt-4">
-                <Button onClick={handleCreateProduct} disabled={isCreating} className="flex-1">
-                  {isCreating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Criando...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Criar Produto
-                    </>
-                  )}
-                </Button>
+                    <Button onClick={handleCreateProduct} disabled={isCreating} className="flex-1">
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Criando...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Criar Anúncio
+                        </>
+                      )}
+                    </Button>
                 <Button variant="outline" onClick={() => setShowCreateForm(false)}>
                   Cancelar
                 </Button>
@@ -990,15 +1122,15 @@ export const ProductsPage = () => {
       {showEditForm && selectedProduct && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <CardHeader>
-              <CardTitle>Editar Produto</CardTitle>
-              <CardDescription>
-                Atualize as informações do produto
-              </CardDescription>
-            </CardHeader>
+                <CardHeader>
+                  <CardTitle>Editar Anúncio</CardTitle>
+                  <CardDescription>
+                    Atualize as informações do anúncio
+                  </CardDescription>
+                </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="edit-title">Título do Produto</Label>
+                <Label htmlFor="edit-title">Título do Anúncio</Label>
                 <Input
                   id="edit-title"
                   value={productForm.title}
@@ -1029,19 +1161,19 @@ export const ProductsPage = () => {
               </div>
 
               <div className="flex gap-2 pt-4">
-                <Button onClick={() => handleUpdateProduct(selectedProduct.id)} disabled={isCreating} className="flex-1">
-                  {isCreating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Atualizando...
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Atualizar Produto
-                    </>
-                  )}
-                </Button>
+                    <Button onClick={() => handleUpdateProduct(selectedProduct.id)} disabled={isCreating} className="flex-1">
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Atualizando...
+                        </>
+                      ) : (
+                        <>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Atualizar Anúncio
+                        </>
+                      )}
+                    </Button>
                 <Button variant="outline" onClick={() => {
                   setShowEditForm(false);
                   setSelectedProduct(null);
@@ -1059,31 +1191,57 @@ export const ProductsPage = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Detalhes Completos do Produto
-              </CardTitle>
-              <CardDescription>
-                Informações detalhadas do produto no Mercado Livre
-              </CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Detalhes Completos do Anúncio
+                  </CardTitle>
+                  <CardDescription>
+                    Informações detalhadas do anúncio no Mercado Livre
+                  </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Informações Básicas */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">ID do Produto</Label>
-                    <p className="text-sm">{selectedProduct.id}</p>
-                  </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">ID do Anúncio</Label>
+                        <p className="text-sm">{selectedProduct.id}</p>
+                      </div>
                   <div>
                     <Label className="text-sm font-medium text-gray-500">Título</Label>
                     <p className="text-sm font-medium">{selectedProduct.title}</p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-gray-500">Preço</Label>
-                    <p className="text-lg font-bold text-green-600">
-                      R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
+                    <div className="mt-1">
+                      {isOnSale(selectedProduct) ? (
+                        <div>
+                          <p className="text-lg font-bold text-red-600">
+                            R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          {(selectedProduct.original_price || selectedProduct.base_price) && 
+                           (selectedProduct.original_price || selectedProduct.base_price) > selectedProduct.price && (
+                            <p className="text-sm text-gray-500 line-through">
+                              R$ {(selectedProduct.original_price || selectedProduct.base_price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          )}
+                          {(() => {
+                            const originalPrice = selectedProduct.original_price || selectedProduct.base_price || selectedProduct.price;
+                            const discount = originalPrice > selectedProduct.price ? 
+                              Math.round(((originalPrice - selectedProduct.price) / originalPrice) * 100) : 0;
+                            return discount > 0 && (
+                              <p className="text-sm text-red-600 font-medium">
+                                -{discount}%
+                              </p>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <p className="text-lg font-bold text-green-600">
+                          R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-gray-500">Status</Label>
@@ -1107,6 +1265,10 @@ export const ProductsPage = () => {
                       <div>
                         <Label className="text-sm font-medium text-gray-500">Tipo de Produto</Label>
                         <div className="mt-1">{getCatalogBadge(selectedProduct)}</div>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Posição no Catálogo</Label>
+                        <div className="mt-1">{getCatalogPositionBadge(selectedProduct)}</div>
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-gray-500">Tipo de Listagem</Label>
