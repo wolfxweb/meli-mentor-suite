@@ -2088,32 +2088,49 @@ export const ProductsPage = () => {
                           <span className="ml-2">Carregando concorrentes...</span>
                         </div>
                       ) : catalogCompetitors.length > 0 ? (
-                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {catalogCompetitors.map((competitor, index) => (
-                            <div key={competitor.item_id || index} className="border rounded-lg p-3 bg-gray-50">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                {/* Preço */}
-                                <div className="text-center">
-                                  <div className="text-lg font-bold text-green-600">
-                                    R$ {competitor.price?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || 'N/A'}
-                                  </div>
-                                  {competitor.original_price && competitor.original_price !== competitor.price && (
-                                    <div className="text-sm text-gray-500 line-through">
-                                      R$ {competitor.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b bg-gray-50">
+                                <th className="text-left p-3 font-medium text-gray-700">Preço</th>
+                                <th className="text-left p-3 font-medium text-gray-700">Vendedor</th>
+                                <th className="text-left p-3 font-medium text-gray-700">Reputação</th>
+                                <th className="text-left p-3 font-medium text-gray-700">Vendas</th>
+                                <th className="text-left p-3 font-medium text-gray-700">Condição</th>
+                                <th className="text-left p-3 font-medium text-gray-700">Frete</th>
+                                <th className="text-left p-3 font-medium text-gray-700">Tipo de Envio</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {catalogCompetitors.map((competitor, index) => (
+                                <tr key={competitor.item_id || index} className="border-b hover:bg-gray-50">
+                                  {/* Preço */}
+                                  <td className="p-3">
+                                    <div className="font-bold text-green-600">
+                                      R$ {competitor.price?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || 'N/A'}
                                     </div>
-                                  )}
-                                </div>
-                                
-                                {/* Vendedor */}
-                                <div className="text-center">
-                                  <div className="text-sm font-medium text-gray-800 mb-1">
-                                    {competitor.seller?.nickname || 'Vendedor'}
-                                  </div>
+                                    {competitor.original_price && competitor.original_price !== competitor.price && (
+                                      <div className="text-xs text-gray-500 line-through">
+                                        R$ {competitor.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      </div>
+                                    )}
+                                  </td>
                                   
-                                  {/* Barra de Reputação */}
-                                  <div className="flex items-center justify-center mb-2">
-                                    <div className="flex items-center space-x-1">
-                                      {/* Barra de cor baseada na reputação */}
+                                  {/* Vendedor */}
+                                  <td className="p-3">
+                                    <div className="font-medium text-gray-800">
+                                      {competitor.seller?.nickname || 'Vendedor'}
+                                    </div>
+                                    {competitor.seller?.power_seller_status && (
+                                      <div className="text-xs text-blue-600">
+                                        {competitor.seller.power_seller_status}
+                                      </div>
+                                    )}
+                                  </td>
+                                  
+                                  {/* Reputação */}
+                                  <td className="p-3">
+                                    <div className="flex items-center space-x-2">
                                       <div className={`w-3 h-3 rounded-full ${
                                         competitor.seller?.reputation_level_id === '5_green' ? 'bg-green-500' :
                                         competitor.seller?.reputation_level_id === '4_green' ? 'bg-green-400' :
@@ -2122,71 +2139,63 @@ export const ProductsPage = () => {
                                         competitor.seller?.reputation_level_id === '1_red' ? 'bg-red-500' :
                                         'bg-gray-400'
                                       }`}></div>
-                                      
-                                      {/* Nível numérico */}
-                                      <span className="text-xs text-gray-600">
+                                      <span className="text-sm font-medium text-gray-700">
                                         {competitor.seller?.reputation_level_id?.split('_')[0] || '0'}
                                       </span>
                                     </div>
-                                  </div>
+                                  </td>
                                   
-                                  <Badge className={
-                                    competitor.seller?.reputation_level_id?.includes('green') ? 'bg-green-100 text-green-800' :
-                                    competitor.seller?.reputation_level_id?.includes('yellow') ? 'bg-yellow-100 text-yellow-800' :
-                                    competitor.seller?.reputation_level_id?.includes('red') ? 'bg-red-100 text-red-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }>
-                                    {competitor.seller?.reputation_level_id?.includes('green') ? 'MercadoLíder' : 
-                                     competitor.seller?.reputation_level_id?.includes('yellow') ? 'Bom Vendedor' : 
-                                     competitor.seller?.reputation_level_id?.includes('red') ? 'Vendedor' : 'Sem Reputação'}
-                                  </Badge>
+                                  {/* Vendas */}
+                                  <td className="p-3">
+                                    <div className="text-xs text-gray-600">
+                                      {competitor.sold_quantity ? `+${competitor.sold_quantity} vendas` : 'Sem vendas'}
+                                    </div>
+                                    {competitor.seller?.transactions?.total > 0 && (
+                                      <div className="text-xs text-gray-500">
+                                        {competitor.seller.transactions.total} transações
+                                      </div>
+                                    )}
+                                  </td>
                                   
-                                  {competitor.seller?.power_seller_status && (
-                                    <div className="text-xs text-blue-600 mt-1">
-                                      {competitor.seller.power_seller_status}
+                                  {/* Condição */}
+                                  <td className="p-3">
+                                    <Badge variant="outline">
+                                      {competitor.condition === 'new' ? 'Novo' : competitor.condition}
+                                    </Badge>
+                                  </td>
+                                  
+                                  {/* Frete */}
+                                  <td className="p-3">
+                                    <div className="text-xs">
+                                      {competitor.shipping?.free_shipping ? '🚚 Frete Grátis (Vendedor paga)' : '💰 Frete Pago (Comprador paga)'}
                                     </div>
-                                  )}
-                                  <div className="text-xs text-gray-600 mt-1">
-                                    {competitor.sold_quantity ? `+${competitor.sold_quantity} vendas` : 'Sem vendas'}
-                                  </div>
-                                  {competitor.seller?.transactions?.total > 0 && (
-                                    <div className="text-xs text-gray-500">
-                                      {competitor.seller.transactions.total} transações
+                                  </td>
+                                  
+                                  {/* Tipo de Envio */}
+                                  <td className="p-3">
+                                    <div className="text-xs text-gray-600">
+                                      {competitor.shipping?.mode === 'me2' ? '📦 Mercado Envios 2' : '📮 Envio Normal'}
                                     </div>
-                                  )}
-                                </div>
-                                
-                                {/* Forma de Entrega */}
-                                <div className="text-center">
-                                  <Badge variant="outline" className="mb-1">
-                                    {competitor.condition === 'new' ? 'Novo' : competitor.condition}
-                                  </Badge>
-                                  <div className="text-xs text-gray-600">
-                                    {competitor.shipping?.free_shipping ? '🚚 Frete Grátis (Vendedor paga)' : '💰 Frete Pago (Comprador paga)'}
-                                  </div>
-                                  <div className="text-xs text-gray-600">
-                                    {competitor.shipping?.mode === 'me2' ? '📦 Mercado Envios 2' : '📮 Envio Normal'}
-                                  </div>
-                                  {competitor.shipping?.logistic_type && (
-                                    <div className="text-xs text-blue-600">
-                                      {competitor.shipping.logistic_type === 'fulfillment' ? '🏪 Mercado Envios Full' :
-                                       competitor.shipping.logistic_type === 'drop_off' ? '📮 Correio Flex' :
-                                       competitor.shipping.logistic_type === 'xd_drop_off' ? '🏢 Coletas e Places' :
-                                       competitor.shipping.logistic_type === 'self_service' ? '⚡ Mercado Envios Flex' :
-                                       competitor.shipping.logistic_type === 'cross_docking' ? '🔄 Cross Docking' :
-                                       competitor.shipping.logistic_type}
-                                    </div>
-                                  )}
-                                  {competitor.shipping?.tags && competitor.shipping.tags.length > 0 && (
-                                    <div className="text-xs text-green-600">
-                                      {competitor.shipping.tags.includes('fulfillment') ? '✅ Full' : ''}
-                                    </div>
-                                  )}
-                                </div>
-                                
-                              </div>
-                            </div>
-                          ))}
+                                    {competitor.shipping?.logistic_type && (
+                                      <div className="text-xs text-blue-600">
+                                        {competitor.shipping.logistic_type === 'fulfillment' ? '🏪 Mercado Envios Full' :
+                                         competitor.shipping.logistic_type === 'drop_off' ? '📮 Correio Flex' :
+                                         competitor.shipping.logistic_type === 'xd_drop_off' ? '🏢 Coletas e Places' :
+                                         competitor.shipping.logistic_type === 'self_service' ? '⚡ Mercado Envios Flex' :
+                                         competitor.shipping.logistic_type === 'cross_docking' ? '🔄 Cross Docking' :
+                                         competitor.shipping.logistic_type}
+                                      </div>
+                                    )}
+                                    {competitor.shipping?.tags && competitor.shipping.tags.length > 0 && (
+                                      <div className="text-xs text-green-600">
+                                        {competitor.shipping.tags.includes('fulfillment') ? '✅ Full' : ''}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       ) : (
                         <div className="text-center py-8 text-gray-500">
