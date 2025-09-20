@@ -1906,18 +1906,24 @@ export const ProductsPage = () => {
                           <div className="flex items-center justify-between">
                             <span className="text-sm">Compartilhando 1º Lugar:</span>
                             <span className="font-bold text-red-600">
-                              {selectedProduct.catalog_competitors_sharing || 0} vendedores
-                              {selectedProduct.catalog_competitors_sharing === 0 && getCatalogPosition(selectedProduct).status === 'winning' && (
-                                <span className="text-green-600 ml-1">(Você está ganhando!)</span>
+                              {selectedProduct.catalog_competitors_sharing === 0 && getCatalogPosition(selectedProduct).status === 'winning' ? (
+                                <span className="text-green-600">Você está ganhando!</span>
+                              ) : selectedProduct.catalog_competitors_sharing === 1 ? (
+                                <span>
+                                  {catalogCompetitors.find(c => c.price === Math.min(...catalogCompetitors.map(comp => comp.price || 0)))?.seller?.nickname || 'Vendedor'}
+                                </span>
+                              ) : (
+                                `${selectedProduct.catalog_competitors_sharing || 0} vendedores`
                               )}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-sm">Sua Posição:</span>
                             <span className="font-bold text-orange-600">
-                              {getCatalogPosition(selectedProduct).status === 'winning' ? '1º' :
-                               getCatalogPosition(selectedProduct).status === 'sharing_first_place' ? '1º' :
-                               getCatalogPosition(selectedProduct).status === 'competing' ? '2º+' : 'Lista'}
+                              {catalogCompetitors.length > 0 ? 
+                                `${catalogCompetitors.filter(c => (c.price || 0) < selectedProduct.price).length + 1}º` : 
+                                '1º'
+                              }
                             </span>
                           </div>
                         </div>
@@ -1949,12 +1955,106 @@ export const ProductsPage = () => {
                           </div>
                           <div className="text-center">
                             <div className="text-lg font-bold text-blue-600">
-                              {catalogCompetitors.filter(c => (c.price || 0) < selectedProduct.price).length + 1}º
-                            </div>
-                            <div className="text-xs text-gray-600">Sua Posição</div>
-                            <div className="text-sm font-medium text-blue-600 mt-1">
                               R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
+                            <div className="text-xs text-gray-600">Preço do Anúncio</div>
+                            {selectedProduct.original_price && selectedProduct.original_price !== selectedProduct.price && (
+                              <div className="text-sm text-gray-500 line-through mt-1">
+                                R$ {selectedProduct.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Análise de Medalhas dos Vendedores */}
+                    {catalogCompetitors.length > 0 && (
+                      <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 p-4 rounded-lg">
+                        <h4 className="font-semibold text-yellow-800 mb-3">🏆 Análise de Medalhas dos Vendedores</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-yellow-600">
+                              {catalogCompetitors.filter(c => c.seller?.power_seller_status === 'gold').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Gold</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-gray-400">
+                              {catalogCompetitors.filter(c => c.seller?.power_seller_status === 'silver').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Silver</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-orange-600">
+                              {catalogCompetitors.filter(c => c.seller?.power_seller_status === 'bronze').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Bronze</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-gray-600">
+                              {catalogCompetitors.filter(c => !c.seller?.power_seller_status).length}
+                            </div>
+                            <div className="text-xs text-gray-600">Sem Medalha</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Análise de Envio */}
+                    {catalogCompetitors.length > 0 && (
+                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
+                        <h4 className="font-semibold text-blue-800 mb-3">📦 Análise de Envio dos Concorrentes</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-green-600">
+                              {catalogCompetitors.filter(c => c.shipping?.free_shipping === true).length}
+                            </div>
+                            <div className="text-xs text-gray-600">Frete Grátis</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-blue-600">
+                              {catalogCompetitors.filter(c => c.shipping?.mode === 'me2').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Mercado Envios 2</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-purple-600">
+                              {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'fulfillment').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Mercado Envios Full</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-orange-600">
+                              {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'drop_off').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Correio Flex</div>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-red-600">
+                              {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'xd_drop_off').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Coletas e Places</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-indigo-600">
+                              {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'self_service').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Mercado Envios Flex</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-yellow-600">
+                              {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'cross_docking').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Cross Docking</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-gray-600">
+                              {catalogCompetitors.filter(c => c.shipping?.mode === 'not_specified' || c.shipping?.mode === 'custom').length}
+                            </div>
+                            <div className="text-xs text-gray-600">Outros/Personalizado</div>
                           </div>
                         </div>
                       </div>
@@ -2009,14 +2109,38 @@ export const ProductsPage = () => {
                                   <div className="text-sm font-medium text-gray-800 mb-1">
                                     {competitor.seller?.nickname || 'Vendedor'}
                                   </div>
+                                  
+                                  {/* Barra de Reputação */}
+                                  <div className="flex items-center justify-center mb-2">
+                                    <div className="flex items-center space-x-1">
+                                      {/* Barra de cor baseada na reputação */}
+                                      <div className={`w-3 h-3 rounded-full ${
+                                        competitor.seller?.reputation_level_id === '5_green' ? 'bg-green-500' :
+                                        competitor.seller?.reputation_level_id === '4_green' ? 'bg-green-400' :
+                                        competitor.seller?.reputation_level_id === '3_yellow' ? 'bg-yellow-400' :
+                                        competitor.seller?.reputation_level_id === '2_yellow' ? 'bg-yellow-500' :
+                                        competitor.seller?.reputation_level_id === '1_red' ? 'bg-red-500' :
+                                        'bg-gray-400'
+                                      }`}></div>
+                                      
+                                      {/* Nível numérico */}
+                                      <span className="text-xs text-gray-600">
+                                        {competitor.seller?.reputation_level_id?.split('_')[0] || '0'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  
                                   <Badge className={
-                                    competitor.seller?.reputation_level_id === 'GREEN' ? 'bg-green-100 text-green-800' :
-                                    competitor.seller?.reputation_level_id === 'YELLOW' ? 'bg-yellow-100 text-yellow-800' :
+                                    competitor.seller?.reputation_level_id?.includes('green') ? 'bg-green-100 text-green-800' :
+                                    competitor.seller?.reputation_level_id?.includes('yellow') ? 'bg-yellow-100 text-yellow-800' :
+                                    competitor.seller?.reputation_level_id?.includes('red') ? 'bg-red-100 text-red-800' :
                                     'bg-gray-100 text-gray-800'
                                   }>
-                                    {competitor.seller?.reputation_level_id === 'GREEN' ? 'MercadoLíder' : 
-                                     competitor.seller?.reputation_level_id === 'YELLOW' ? 'Bom Vendedor' : 'Vendedor'}
+                                    {competitor.seller?.reputation_level_id?.includes('green') ? 'MercadoLíder' : 
+                                     competitor.seller?.reputation_level_id?.includes('yellow') ? 'Bom Vendedor' : 
+                                     competitor.seller?.reputation_level_id?.includes('red') ? 'Vendedor' : 'Sem Reputação'}
                                   </Badge>
+                                  
                                   {competitor.seller?.power_seller_status && (
                                     <div className="text-xs text-blue-600 mt-1">
                                       {competitor.seller.power_seller_status}
@@ -2038,14 +2162,19 @@ export const ProductsPage = () => {
                                     {competitor.condition === 'new' ? 'Novo' : competitor.condition}
                                   </Badge>
                                   <div className="text-xs text-gray-600">
-                                    {competitor.shipping?.free_shipping ? '🚚 Frete Grátis' : '💰 Frete Pago'}
+                                    {competitor.shipping?.free_shipping ? '🚚 Frete Grátis (Vendedor paga)' : '💰 Frete Pago (Comprador paga)'}
                                   </div>
                                   <div className="text-xs text-gray-600">
-                                    {competitor.shipping?.mode === 'me2' ? '📦 Mercado Envios' : '📮 Envio Normal'}
+                                    {competitor.shipping?.mode === 'me2' ? '📦 Mercado Envios 2' : '📮 Envio Normal'}
                                   </div>
                                   {competitor.shipping?.logistic_type && (
                                     <div className="text-xs text-blue-600">
-                                      {competitor.shipping.logistic_type}
+                                      {competitor.shipping.logistic_type === 'fulfillment' ? '🏪 Mercado Envios Full' :
+                                       competitor.shipping.logistic_type === 'drop_off' ? '📮 Correio Flex' :
+                                       competitor.shipping.logistic_type === 'xd_drop_off' ? '🏢 Coletas e Places' :
+                                       competitor.shipping.logistic_type === 'self_service' ? '⚡ Mercado Envios Flex' :
+                                       competitor.shipping.logistic_type === 'cross_docking' ? '🔄 Cross Docking' :
+                                       competitor.shipping.logistic_type}
                                     </div>
                                   )}
                                   {competitor.shipping?.tags && competitor.shipping.tags.length > 0 && (
@@ -2093,30 +2222,6 @@ export const ProductsPage = () => {
                 </CardContent>
               </Card>
 
-              {/* Informações de Envio */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">🚚 Análise de Envio</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="font-medium">Mercado Livre Full</span>
-                      <Badge className={hasFullSales(selectedProduct) ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-                        {hasFullSales(selectedProduct) ? "✅ Ativo" : "❌ Inativo"}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="font-medium">Tipo de Listagem</span>
-                      <Badge variant="outline">{selectedProduct.listing_type_id || 'N/A'}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="font-medium">Condição</span>
-                      <Badge variant="outline">{selectedProduct.condition}</Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
 
               {/* Recomendações */}
               <Card>
@@ -2221,3 +2326,4 @@ export const ProductsPage = () => {
     </div>
   );
 };
+
