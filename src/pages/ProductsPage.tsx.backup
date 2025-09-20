@@ -112,9 +112,6 @@ export const ProductsPage = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showCatalogAnalysisModal, setShowCatalogAnalysisModal] = useState(false);
-  const [catalogCompetitors, setCatalogCompetitors] = useState<any[]>([]);
-  const [loadingCompetitors, setLoadingCompetitors] = useState(false);
   const [fullFilter, setFullFilter] = useState<'all' | 'full' | 'no-full'>('all');
   const [catalogFilter, setCatalogFilter] = useState<'all' | 'catalog' | 'normal'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'closed'>('all');
@@ -526,32 +523,8 @@ export const ProductsPage = () => {
             Catálogo
           </Badge>
           {status !== 'unknown' && (
-            <div className="text-xs space-y-1">
+            <div className="text-xs">
               {getCatalogPositionBadge(product)}
-              
-              {/* Preço para ganhar */}
-              {product.catalog_price_to_win && (
-                <div className="text-xs text-blue-600 font-medium">
-                  💰 Preço vencedor R$ {product.catalog_price_to_win.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </div>
-              )}
-              
-              {/* Visibilidade */}
-              {product.catalog_visit_share && (
-                <div className={`text-xs font-medium ${
-                  product.catalog_visit_share === 'maximum' ? 'text-green-600' :
-                  product.catalog_visit_share === 'medium' ? 'text-yellow-600' :
-                  product.catalog_visit_share === 'minimum' ? 'text-red-600' :
-                  'text-purple-600'
-                }`}>
-                  👁️ {
-                    product.catalog_visit_share === 'maximum' ? 'Máxima' :
-                    product.catalog_visit_share === 'medium' ? 'Média' :
-                    product.catalog_visit_share === 'minimum' ? 'Mínima' :
-                    product.catalog_visit_share
-                  } visibilidade
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -603,36 +576,6 @@ export const ProductsPage = () => {
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadCatalogCompetitors = async (productId: string) => {
-    setLoadingCompetitors(true);
-    try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const token = localStorage.getItem('auth_token');
-      
-      const response = await fetch(`${API_BASE_URL}/api/mercado-livre/catalog-competitors/${productId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const competitors = await response.json();
-        console.log('Concorrentes carregados:', competitors);
-        setCatalogCompetitors(competitors);
-      } else {
-        const errorData = await response.json();
-        console.error('Erro ao carregar concorrentes do catálogo:', errorData);
-        setCatalogCompetitors([]);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar concorrentes:', error);
-      setCatalogCompetitors([]);
-    } finally {
-      setLoadingCompetitors(false);
     }
   };
 
@@ -1126,27 +1069,9 @@ export const ProductsPage = () => {
                                         setSelectedProduct(product);
                                         setShowDetailsModal(true);
                                       }}
-                                      title="Ver detalhes do anúncio"
                                     >
                                       <Eye className="h-3 w-3" />
                                     </Button>
-                                    {isCatalogProduct(product) && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                          setSelectedProduct(product);
-                                          setShowCatalogAnalysisModal(true);
-                                          if (product.catalog_product_id) {
-                                            loadCatalogCompetitors(product.catalog_product_id);
-                                          }
-                                        }}
-                                        title="Análise completa do catálogo"
-                                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
-                                      >
-                                        <Search className="h-3 w-3" />
-                                      </Button>
-                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1355,6 +1280,207 @@ export const ProductsPage = () => {
           </div>
         </TabsContent>
       </Tabs>
+      <Card>
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Meus Anúncios ({filteredProducts.length} de {totalProducts})
+            </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : filteredProducts.length === 0 ? (
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Nenhum anúncio encontrado</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {searchTerm ? "Tente ajustar sua busca" : "Comece criando seu primeiro anúncio"}
+                  </p>
+                  {!searchTerm && (
+                    <Button onClick={() => setShowCreateForm(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Criar Anúncio
+                    </Button>
+                  )}
+                </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">Imagem</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleSort('title')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Anúncio
+                        {getSortIcon('title')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-right"
+                      onClick={() => handleSort('price')}
+                    >
+                      <div className="flex items-center justify-end gap-2">
+                        Preço
+                        {getSortIcon('price')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-center"
+                      onClick={() => handleSort('available_quantity')}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        Estoque
+                        {getSortIcon('available_quantity')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-center"
+                      onClick={() => handleSort('sold_quantity')}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        Vendidos
+                        {getSortIcon('sold_quantity')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-center"
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        Status
+                        {getSortIcon('status')}
+                      </div>
+                    </TableHead>
+                        <TableHead className="text-center">Full</TableHead>
+                        <TableHead className="text-center">Catálogo</TableHead>
+                        <TableHead className="text-center">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedProducts.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell>
+                        <div className="w-12 h-12 bg-muted rounded-md overflow-hidden">
+                          {product.thumbnail ? (
+                            <img
+                              src={product.thumbnail}
+                              alt={product.title}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-xs">
+                          <p className="font-medium line-clamp-2">{product.title}</p>
+                          <p className="text-sm text-muted-foreground">ID: {product.id}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {getPriceDisplay(product)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="font-medium">{product.available_quantity}</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="font-medium">{product.sold_quantity}</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {getStatusBadge(product.status)}
+                      </TableCell>
+                          <TableCell className="text-center">
+                            {getFullSalesBadge(product)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {getCatalogBadge(product)}
+                          </TableCell>
+                          <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedProduct(product);
+                              setShowDetailsModal(true);
+                            }}
+                            title="Ver detalhes completos"
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedProduct(product);
+                              setProductForm({
+                                title: product.title,
+                                price: product.price,
+                                available_quantity: product.available_quantity,
+                                condition: product.condition,
+                                description: "",
+                                category_id: product.category_id,
+                                pictures: product.pictures.map(p => p.url),
+                                attributes: product.attributes.map(a => ({
+                                  id: a.id,
+                                  value_name: a.value_name
+                                }))
+                              });
+                              setShowEditForm(true);
+                            }}
+                            title="Editar produto"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(product.permalink, '_blank')}
+                            title="Ver no Mercado Livre"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeleteProduct(product.id)}
+                            title="Excluir produto"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          
+          {/* Results Summary */}
+          {!isLoading && sortedProducts.length > 0 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Mostrando {sortedProducts.length} anúncios filtrados de {totalProducts} total
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {fullFilter === 'full' && `✅ ${sortedProducts.length} anúncios com vendas no Full`}
+                    {fullFilter === 'no-full' && `⚠️ ${sortedProducts.length} anúncios sem vendas no Full`}
+                    {fullFilter === 'all' && `📦 ${sortedProducts.length} anúncios exibidos`}
+                  </div>
+                </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Create Product Modal */}
       {showCreateForm && (
@@ -1748,468 +1874,6 @@ export const ProductsPage = () => {
             <div className="flex justify-end p-6 pt-0">
               <Button variant="outline" onClick={() => {
                 setShowDetailsModal(false);
-                setSelectedProduct(null);
-              }}>
-                Fechar
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Modal de Análise do Catálogo */}
-      {showCatalogAnalysisModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-6xl max-h-[90vh] overflow-y-auto">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Análise Completa do Catálogo
-              </CardTitle>
-              <CardDescription>
-                Análise detalhada do produto no catálogo do Mercado Livre
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Informações Básicas do Produto */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">📦 Informações do Produto</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Título</Label>
-                      <p className="text-sm font-medium">{selectedProduct.title}</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">ID do Anúncio</Label>
-                      <p className="text-sm font-mono">{selectedProduct.id}</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">ID do Produto de Catálogo</Label>
-                      <p className="text-sm font-mono">{selectedProduct.catalog_product_id || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Família do Produto</Label>
-                      <p className="text-sm">{selectedProduct.family_name || 'N/A'}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">💰 Análise de Preços</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {/* Seu Anúncio */}
-                      <div className="bg-blue-50 p-4 rounded-lg">
-                        <h4 className="font-semibold text-blue-800 mb-3">📊 Seu Anúncio</h4>
-                        <div className="space-y-2">
-                          <div>
-                            <Label className="text-sm font-medium text-gray-500">Preço Atual</Label>
-                            <p className="text-lg font-bold text-green-600">
-                              R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </p>
-                          </div>
-                          {selectedProduct.original_price && selectedProduct.original_price !== selectedProduct.price && (
-                            <div>
-                              <Label className="text-sm font-medium text-gray-500">Preço Original</Label>
-                              <p className="text-sm text-gray-500 line-through">
-                                R$ {selectedProduct.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-
-                      {/* Preço para vencer */}
-                      {selectedProduct.catalog_price_to_win && (
-                        <div className="bg-purple-50 p-4 rounded-lg">
-                          <h4 className="font-semibold text-purple-800 mb-2">🎯 Preço para Vencer</h4>
-                          <p className="text-lg font-bold text-purple-600">
-                            R$ {selectedProduct.catalog_price_to_win.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
-                          <p className="text-sm text-purple-600 mt-1">
-                            Preço sugerido pelo Mercado Livre para vencer a competição
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-              </div>
-
-
-
-              {/* Análise de Concorrentes no Catálogo */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">🏪 Análise de Concorrentes no Catálogo</CardTitle>
-                  <CardDescription>
-                    Análise detalhada da competição e posicionamento no catálogo
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    {/* Status e Posicionamento */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
-                        <h4 className="font-semibold text-blue-800 mb-3">🎯 Seu Status no Catálogo</h4>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm">Status:</span>
-                            <Badge className={
-                              getCatalogPosition(selectedProduct).status === 'winning' ? 'bg-green-100 text-green-800' :
-                              getCatalogPosition(selectedProduct).status === 'sharing_first_place' ? 'bg-blue-100 text-blue-800' :
-                              getCatalogPosition(selectedProduct).status === 'competing' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
-                            }>
-                              {getCatalogPosition(selectedProduct).status === 'winning' ? '🥇 Ganhando' :
-                               getCatalogPosition(selectedProduct).status === 'sharing_first_place' ? '🥈 Compartilhando 1º' :
-                               getCatalogPosition(selectedProduct).status === 'competing' ? '🥉 Competindo' : '📋 Listado'}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm">Visibilidade:</span>
-                            <Badge className={
-                              selectedProduct.catalog_visit_share === 'maximum' ? 'bg-green-100 text-green-800' :
-                              selectedProduct.catalog_visit_share === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                              selectedProduct.catalog_visit_share === 'minimum' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }>
-                              {selectedProduct.catalog_visit_share === 'maximum' ? '👁️ Máxima' :
-                               selectedProduct.catalog_visit_share === 'medium' ? '👁️ Média' :
-                               selectedProduct.catalog_visit_share === 'minimum' ? '👁️ Mínima' : '👁️ N/A'}
-                            </Badge>
-                          </div>
-                          {selectedProduct.catalog_price_to_win && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">Preço para Vencer:</span>
-                              <span className="font-bold text-blue-600">
-                                R$ {selectedProduct.catalog_price_to_win.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg">
-                        <h4 className="font-semibold text-purple-800 mb-3">📊 Estatísticas de Competição</h4>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm">Total de Concorrentes:</span>
-                            <span className="font-bold text-purple-600">
-                              {catalogCompetitors.length} vendedores
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm">Compartilhando 1º Lugar:</span>
-                            <span className="font-bold text-red-600">
-                              {selectedProduct.catalog_competitors_sharing || 0} vendedores
-                              {selectedProduct.catalog_competitors_sharing === 0 && getCatalogPosition(selectedProduct).status === 'winning' && (
-                                <span className="text-green-600 ml-1">(Você está ganhando!)</span>
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm">Sua Posição:</span>
-                            <span className="font-bold text-orange-600">
-                              {getCatalogPosition(selectedProduct).status === 'winning' ? '1º' :
-                               getCatalogPosition(selectedProduct).status === 'sharing_first_place' ? '1º' :
-                               getCatalogPosition(selectedProduct).status === 'competing' ? '2º+' : 'Lista'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Análise de Preços dos Concorrentes */}
-                    {catalogCompetitors.length > 0 && (
-                      <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
-                        <h4 className="font-semibold text-green-800 mb-3">💰 Análise de Preços dos Concorrentes</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="text-center">
-                            <div className="text-lg font-bold text-red-600">
-                              R$ {Math.min(...catalogCompetitors.map(c => c.price || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </div>
-                            <div className="text-xs text-gray-600">Menor Preço</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-bold text-green-600">
-                              R$ {Math.max(...catalogCompetitors.map(c => c.price || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </div>
-                            <div className="text-xs text-gray-600">Maior Preço</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-bold text-yellow-600">
-                              R$ {(catalogCompetitors.reduce((sum, c) => sum + (c.price || 0), 0) / catalogCompetitors.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </div>
-                            <div className="text-xs text-gray-600">Preço Médio</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-bold text-blue-600">
-                              {catalogCompetitors.filter(c => (c.price || 0) < selectedProduct.price).length + 1}º
-                            </div>
-                            <div className="text-xs text-gray-600">Sua Posição</div>
-                            <div className="text-sm font-medium text-blue-600 mt-1">
-                              R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Lista de Concorrentes */}
-                    <div className="bg-white border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="font-semibold text-gray-800">🏪 Lista de Concorrentes no Catálogo</h4>
-                        <Button
-                          onClick={() => {
-                            if (selectedProduct.catalog_product_id) {
-                              loadCatalogCompetitors(selectedProduct.catalog_product_id);
-                            }
-                          }}
-                          disabled={loadingCompetitors}
-                          size="sm"
-                          variant="outline"
-                        >
-                          {loadingCompetitors ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                      
-                      {loadingCompetitors ? (
-                        <div className="flex justify-center py-8">
-                          <Loader2 className="h-8 w-8 animate-spin" />
-                          <span className="ml-2">Carregando concorrentes...</span>
-                        </div>
-                      ) : catalogCompetitors.length > 0 ? (
-                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {catalogCompetitors.map((competitor, index) => (
-                            <div key={competitor.item_id || index} className="border rounded-lg p-3 bg-gray-50">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                {/* Preço */}
-                                <div className="text-center">
-                                  <div className="text-lg font-bold text-green-600">
-                                    R$ {competitor.price?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || 'N/A'}
-                                  </div>
-                                  {competitor.original_price && competitor.original_price !== competitor.price && (
-                                    <div className="text-sm text-gray-500 line-through">
-                                      R$ {competitor.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Vendedor */}
-                                <div className="text-center">
-                                  <div className="text-sm font-medium text-gray-800 mb-1">
-                                    {competitor.seller?.nickname || 'Vendedor'}
-                                  </div>
-                                  <Badge className={
-                                    competitor.seller?.reputation_level_id === 'GREEN' ? 'bg-green-100 text-green-800' :
-                                    competitor.seller?.reputation_level_id === 'YELLOW' ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }>
-                                    {competitor.seller?.reputation_level_id === 'GREEN' ? 'MercadoLíder' : 
-                                     competitor.seller?.reputation_level_id === 'YELLOW' ? 'Bom Vendedor' : 'Vendedor'}
-                                  </Badge>
-                                  {competitor.seller?.power_seller_status && (
-                                    <div className="text-xs text-blue-600 mt-1">
-                                      {competitor.seller.power_seller_status}
-                                    </div>
-                                  )}
-                                  <div className="text-xs text-gray-600 mt-1">
-                                    {competitor.sold_quantity ? `+${competitor.sold_quantity} vendas` : 'Sem vendas'}
-                                  </div>
-                                  {competitor.seller?.transactions?.total > 0 && (
-                                    <div className="text-xs text-gray-500">
-                                      {competitor.seller.transactions.total} transações
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Forma de Entrega */}
-                                <div className="text-center">
-                                  <Badge variant="outline" className="mb-1">
-                                    {competitor.condition === 'new' ? 'Novo' : competitor.condition}
-                                  </Badge>
-                                  <div className="text-xs text-gray-600">
-                                    {competitor.shipping?.free_shipping ? '🚚 Frete Grátis' : '💰 Frete Pago'}
-                                  </div>
-                                  <div className="text-xs text-gray-600">
-                                    {competitor.shipping?.mode === 'me2' ? '📦 Mercado Envios' : '📮 Envio Normal'}
-                                  </div>
-                                  {competitor.shipping?.logistic_type && (
-                                    <div className="text-xs text-blue-600">
-                                      {competitor.shipping.logistic_type}
-                                    </div>
-                                  )}
-                                  {competitor.shipping?.tags && competitor.shipping.tags.length > 0 && (
-                                    <div className="text-xs text-green-600">
-                                      {competitor.shipping.tags.includes('fulfillment') ? '✅ Full' : ''}
-                                    </div>
-                                  )}
-                                </div>
-                                
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                          <p>Nenhum concorrente encontrado</p>
-                          <p className="text-sm">Clique em "Atualizar" para buscar concorrentes</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Link para Ver no Mercado Livre */}
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-semibold text-blue-800">🔍 Ver Página do Produto no Mercado Livre</h4>
-                          <p className="text-sm text-blue-600 mt-1">
-                            Acesse a página oficial do produto para ver todos os concorrentes
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => {
-                            const productUrl = `https://www.mercadolivre.com.br/p/${selectedProduct.catalog_product_id}`;
-                            window.open(productUrl, '_blank');
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          Ver no ML
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Informações de Envio */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">🚚 Análise de Envio</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="font-medium">Mercado Livre Full</span>
-                      <Badge className={hasFullSales(selectedProduct) ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-                        {hasFullSales(selectedProduct) ? "✅ Ativo" : "❌ Inativo"}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="font-medium">Tipo de Listagem</span>
-                      <Badge variant="outline">{selectedProduct.listing_type_id || 'N/A'}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="font-medium">Condição</span>
-                      <Badge variant="outline">{selectedProduct.condition}</Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Recomendações */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">💡 Recomendações</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {getCatalogPosition(selectedProduct).status === 'competing' && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Melhore seu preço:</strong> Considere reduzir o preço para R$ {selectedProduct.catalog_price_to_win?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} para vencer a competição.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {catalogCompetitors.length > 0 && (
-                      <>
-                        {selectedProduct.price > Math.min(...catalogCompetitors.map(c => c.price || 0)) && (
-                          <Alert>
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription>
-                              <strong>Preço acima da concorrência:</strong> Seu preço (R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está acima do menor preço dos concorrentes (R$ {Math.min(...catalogCompetitors.map(c => c.price || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                        {selectedProduct.price < Math.min(...catalogCompetitors.map(c => c.price || 0)) && (
-                          <Alert>
-                            <CheckCircle className="h-4 w-4" />
-                            <AlertDescription>
-                              <strong>Preço competitivo:</strong> Seu preço (R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está abaixo do menor preço dos concorrentes (R$ {Math.min(...catalogCompetitors.map(c => c.price || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                        {selectedProduct.price > (catalogCompetitors.reduce((sum, c) => sum + (c.price || 0), 0) / catalogCompetitors.length) && (
-                          <Alert>
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription>
-                              <strong>Preço acima da média:</strong> Seu preço está acima da média dos concorrentes (R$ {(catalogCompetitors.reduce((sum, c) => sum + (c.price || 0), 0) / catalogCompetitors.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                      </>
-                    )}
-                    {!hasFullSales(selectedProduct) && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Ative o Mercado Livre Full:</strong> Produtos com Full têm maior visibilidade e chances de venda.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {selectedProduct.catalog_visit_share === 'minimum' && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Baixa visibilidade:</strong> Melhore suas condições de venda para aumentar a visibilidade no catálogo.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {getCatalogPosition(selectedProduct).status === 'winning' && (
-                      <Alert>
-                        <CheckCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Parabéns!</strong> Seu produto está ganhando no catálogo. Continue mantendo as condições competitivas.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {selectedProduct.catalog_competitors_sharing && selectedProduct.catalog_competitors_sharing > 0 && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Competição acirrada:</strong> Há {selectedProduct.catalog_competitors_sharing} concorrente(s) compartilhando o primeiro lugar. 
-                          Monitore preços e condições para manter sua posição.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {getCatalogPosition(selectedProduct).status === 'sharing_first_place' && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Compartilhando o primeiro lugar:</strong> Você está dividindo a liderança com outros vendedores. 
-                          Considere melhorar preço ou condições para ser o único ganhador.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </CardContent>
-            <div className="flex justify-end p-6 pt-0">
-              <Button variant="outline" onClick={() => {
-                setShowCatalogAnalysisModal(false);
                 setSelectedProduct(null);
               }}>
                 Fechar
