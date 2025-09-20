@@ -8,6 +8,7 @@ from app.services.mercado_livre import mercado_livre_service
 from typing import Optional
 import logging
 import httpx
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -400,5 +401,223 @@ async def get_item_details(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro interno ao buscar detalhes do anúncio"
+        )
+
+def process_listing_prices_data(listing_data: dict, item_data: dict) -> dict:
+    """Processa dados oficiais da API de listing_prices do Mercado Livre."""
+    costs_data = {
+        "listing_type": listing_data.get("listing_type_name", "N/A"),
+        "listing_type_id": listing_data.get("listing_type_id", "N/A"),
+        "listing_exposure": listing_data.get("listing_exposure", "N/A"),
+        "currency_id": listing_data.get("currency_id", "BRL"),
+        "requires_picture": listing_data.get("requires_picture", False),
+        "free_relist": listing_data.get("free_relist", False),
+        "stop_time": listing_data.get("stop_time"),
+        
+        # Custos de listagem
+        "listing_fee_amount": listing_data.get("listing_fee_amount", 0),
+        "listing_fee_details": listing_data.get("listing_fee_details", {}),
+        
+        # Custos de venda
+        "sale_fee_amount": listing_data.get("sale_fee_amount", 0),
+        "sale_fee_details": listing_data.get("sale_fee_details", {}),
+        
+        # Informações do item
+        "item_info": {
+            "price": item_data.get("price", 0),
+            "category_id": item_data.get("category_id"),
+            "condition": item_data.get("condition"),
+            "sold_quantity": item_data.get("sold_quantity", 0),
+            "available_quantity": item_data.get("available_quantity", 0),
+            "shipping": item_data.get("shipping", {})
+        }
+    }
+    
+    # Calcular custos totais
+    total_costs = costs_data["listing_fee_amount"] + costs_data["sale_fee_amount"]
+    costs_data["total_estimated_cost"] = total_costs
+    
+    return costs_data
+
+def create_fallback_costs_data(item_data: dict) -> dict:
+    """Cria dados de custos básicos quando não consegue acessar a API oficial."""
+    listing_type_id = item_data.get("listing_type_id", "free")
+    
+    # Estimativas baseadas no tipo de listagem
+    if listing_type_id in ["gold_special", "gold_pro"]:
+        listing_fee = 15.90
+        sale_fee_percentage = 0.12
+    elif listing_type_id == "gold":
+        listing_fee = 7.90
+        sale_fee_percentage = 0.12
+    else:
+        listing_fee = 0
+        sale_fee_percentage = 0.12
+    
+    price = item_data.get("price", 0)
+    sale_fee_amount = price * sale_fee_percentage
+    
+    return {
+        "listing_type": "Estimativa",
+        "listing_type_id": listing_type_id,
+        "listing_exposure": "N/A",
+        "currency_id": item_data.get("currency_id", "BRL"),
+        "requires_picture": True,
+        "free_relist": False,
+        "stop_time": None,
+        
+        "listing_fee_amount": listing_fee,
+        "listing_fee_details": {
+            "fixed_fee": listing_fee,
+            "gross_amount": listing_fee
+        },
+        
+        "sale_fee_amount": sale_fee_amount,
+        "sale_fee_details": {
+            "percentage_fee": sale_fee_percentage * 100,
+            "gross_amount": sale_fee_amount
+        },
+        
+        "item_info": {
+            "price": price,
+            "category_id": item_data.get("category_id"),
+            "condition": item_data.get("condition"),
+            "sold_quantity": item_data.get("sold_quantity", 0),
+            "available_quantity": item_data.get("available_quantity", 0),
+            "shipping": item_data.get("shipping", {})
+        },
+        
+        "total_estimated_cost": listing_fee + sale_fee_amount,
+        "is_estimate": True
+    }
+
+@router.get("/item-costs/{item_id}")
+async def get_item_costs(
+    item_id: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca informações de custos e taxas de um anúncio do Mercado Livre usando a API oficial de listing_prices."""
+    try:
+        # Buscar integração ativa do usuário
+        integration = db.query(MercadoLivreIntegration).filter(
+            MercadoLivreIntegration.company_id == current_user.company_id,
+            MercadoLivreIntegration.is_active == True
+        ).first()
+        
+        if not integration:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Integração com Mercado Livre não encontrada"
+            )
+        
+        # Verificar se o token precisa ser renovado
+        valid_token = integration.access_token
+        if integration.expires_at and datetime.utcnow() >= integration.expires_at:
+            # Renovar token
+            try:
+                new_token_data = await mercado_livre_service.refresh_access_token(integration.refresh_token)
+                integration.access_token = new_token_data.access_token
+                integration.refresh_token = new_token_data.refresh_token
+                integration.expires_at = datetime.utcnow() + timedelta(seconds=new_token_data.expires_in)
+                db.commit()
+                valid_token = integration.access_token
+            except Exception as e:
+                logger.error(f"Erro ao renovar token: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Erro ao renovar token de acesso"
+                )
+        
+        async with httpx.AsyncClient() as client:
+            costs_data = {}
+            
+            try:
+                # 1. Buscar informações básicas do item
+                item_response = await client.get(
+                    f"https://api.mercadolibre.com/items/{item_id}",
+                    headers={"Authorization": f"Bearer {valid_token}"}
+                )
+                
+                if item_response.status_code == 200:
+                    item_data = item_response.json()
+                    price = item_data.get("price", 0)
+                    category_id = item_data.get("category_id")
+                    listing_type_id = item_data.get("listing_type_id")
+                    currency_id = item_data.get("currency_id", "BRL")
+                    site_id = item_data.get("site_id", "MLB")
+                    
+                    # 2. Buscar custos oficiais usando a API de listing_prices
+                    listing_prices_url = f"https://api.mercadolibre.com/sites/{site_id}/listing_prices"
+                    params = {
+                        "price": price,
+                        "category_id": category_id,
+                        "currency_id": currency_id
+                    }
+                    
+                    # Se temos o listing_type_id, adicionar aos parâmetros para busca mais específica
+                    if listing_type_id:
+                        params["listing_type_id"] = listing_type_id
+                    
+                    listing_prices_response = await client.get(
+                        listing_prices_url,
+                        params=params,
+                        headers={"Authorization": f"Bearer {valid_token}"}
+                    )
+                    
+                    if listing_prices_response.status_code == 200:
+                        listing_prices_data = listing_prices_response.json()
+                        
+                        # Se retornou array, pegar o primeiro item (ou o que corresponde ao listing_type_id)
+                        if isinstance(listing_prices_data, list):
+                            if listing_type_id:
+                                # Buscar o item que corresponde ao listing_type_id do anúncio
+                                current_listing_data = next(
+                                    (item for item in listing_prices_data if item.get("listing_type_id") == listing_type_id),
+                                    listing_prices_data[0] if listing_prices_data else None
+                                )
+                            else:
+                                current_listing_data = listing_prices_data[0] if listing_prices_data else None
+                        else:
+                            current_listing_data = listing_prices_data
+                        
+                        if current_listing_data:
+                            # Processar dados oficiais de custos
+                            costs_data = process_listing_prices_data(current_listing_data, item_data)
+                        else:
+                            # Fallback para dados básicos se não conseguir buscar custos oficiais
+                            costs_data = create_fallback_costs_data(item_data)
+                    else:
+                        logger.warning(f"Erro ao buscar listing_prices: {listing_prices_response.status_code}")
+                        # Fallback para dados básicos
+                        costs_data = create_fallback_costs_data(item_data)
+                    
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Anúncio não encontrado"
+                    )
+                    
+            except httpx.RequestError as e:
+                logger.error(f"Erro na requisição para API do Mercado Livre: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Erro ao acessar API do Mercado Livre"
+                )
+        
+        return {
+            "success": True,
+            "item_id": item_id,
+            "costs_data": costs_data,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar custos do item: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao buscar custos do item"
         )
 

@@ -502,8 +502,19 @@ async def get_announcements(
                 "permalink": announcement.permalink,
                 "thumbnail": announcement.thumbnail,
                 "listing_type_id": announcement.listing_type_id,
+                "listing_type_name": announcement.listing_type_name,
+                "listing_exposure": announcement.listing_exposure,
                 "category_id": announcement.category_id,
                 "domain_id": announcement.domain_id,
+                
+                # Campos de custos
+                "listing_fee_amount": float(announcement.listing_fee_amount) if announcement.listing_fee_amount else None,
+                "sale_fee_amount": float(announcement.sale_fee_amount) if announcement.sale_fee_amount else None,
+                "sale_fee_percentage": float(announcement.sale_fee_percentage) if announcement.sale_fee_percentage else None,
+                "sale_fee_fixed": float(announcement.sale_fee_fixed) if announcement.sale_fee_fixed else None,
+                "total_cost": float(announcement.total_cost) if announcement.total_cost else None,
+                "requires_picture": announcement.requires_picture,
+                "free_relist": announcement.free_relist,
                 "catalog_listing": announcement.catalog_listing,
                 "catalog_product_id": announcement.catalog_product_id,
                 "family_name": announcement.family_name,
@@ -678,6 +689,68 @@ async def sync_announcements(
                     except Exception as catalog_error:
                         logger.warning(f"Erro ao buscar posição no catálogo do item {item_id}: {catalog_error}")
                     
+                    # Buscar informações de custos usando a API oficial listing_prices
+                    try:
+                        price = item_data.get("price", 0)
+                        category_id = item_data.get("category_id")
+                        listing_type_id = item_data.get("listing_type_id")
+                        currency_id = item_data.get("currency_id", "BRL")
+                        site_id = item_data.get("site_id", "MLB")
+                        
+                        if price and category_id:
+                            listing_prices_url = f"https://api.mercadolibre.com/sites/{site_id}/listing_prices"
+                            params = {
+                                "price": price,
+                                "category_id": category_id,
+                                "currency_id": currency_id
+                            }
+                            
+                            if listing_type_id:
+                                params["listing_type_id"] = listing_type_id
+                            
+                            listing_prices_response = await client.get(
+                                listing_prices_url,
+                                params=params,
+                                headers=headers
+                            )
+                            
+                            if listing_prices_response.status_code == 200:
+                                listing_prices_data = listing_prices_response.json()
+                                
+                                # Processar dados de custos
+                                if isinstance(listing_prices_data, list):
+                                    if listing_type_id:
+                                        current_listing_data = next(
+                                            (item for item in listing_prices_data if item.get("listing_type_id") == listing_type_id),
+                                            listing_prices_data[0] if listing_prices_data else None
+                                        )
+                                    else:
+                                        current_listing_data = listing_prices_data[0] if listing_prices_data else None
+                                else:
+                                    current_listing_data = listing_prices_data
+                                
+                                if current_listing_data:
+                                    # Adicionar dados de custos ao item
+                                    item_data["listing_type_name"] = current_listing_data.get("listing_type_name")
+                                    item_data["listing_exposure"] = current_listing_data.get("listing_exposure")
+                                    item_data["listing_fee_amount"] = current_listing_data.get("listing_fee_amount", 0)
+                                    item_data["sale_fee_amount"] = current_listing_data.get("sale_fee_amount", 0)
+                                    item_data["requires_picture"] = current_listing_data.get("requires_picture", True)
+                                    item_data["free_relist"] = current_listing_data.get("free_relist", False)
+                                    
+                                    # Extrair detalhes da taxa de venda
+                                    sale_fee_details = current_listing_data.get("sale_fee_details", {})
+                                    item_data["sale_fee_percentage"] = sale_fee_details.get("percentage_fee")
+                                    item_data["sale_fee_fixed"] = sale_fee_details.get("fixed_fee")
+                                    
+                                    # Calcular custo total
+                                    listing_fee = current_listing_data.get("listing_fee_amount", 0)
+                                    sale_fee = current_listing_data.get("sale_fee_amount", 0)
+                                    item_data["total_cost"] = listing_fee + sale_fee
+                                    
+                    except Exception as costs_error:
+                        logger.warning(f"Erro ao buscar custos do item {item_id}: {costs_error}")
+                    
                     # Verificar se o anúncio já existe
                     existing_announcement = db.query(MercadoLivreAnnouncement).filter(
                         MercadoLivreAnnouncement.ml_item_id == item_id,
@@ -698,8 +771,19 @@ async def sync_announcements(
                         "permalink": item_data.get("permalink"),
                         "thumbnail": item_data.get("thumbnail"),
                         "listing_type_id": item_data.get("listing_type_id"),
+                        "listing_type_name": item_data.get("listing_type_name"),
+                        "listing_exposure": item_data.get("listing_exposure"),
                         "category_id": item_data.get("category_id"),
                         "domain_id": item_data.get("domain_id"),
+                        
+                        # Campos de custos
+                        "listing_fee_amount": float(item_data.get("listing_fee_amount", 0)) if item_data.get("listing_fee_amount") is not None else None,
+                        "sale_fee_amount": float(item_data.get("sale_fee_amount", 0)) if item_data.get("sale_fee_amount") is not None else None,
+                        "sale_fee_percentage": float(item_data.get("sale_fee_percentage", 0)) if item_data.get("sale_fee_percentage") is not None else None,
+                        "sale_fee_fixed": float(item_data.get("sale_fee_fixed", 0)) if item_data.get("sale_fee_fixed") is not None else None,
+                        "total_cost": float(item_data.get("total_cost", 0)) if item_data.get("total_cost") is not None else None,
+                        "requires_picture": item_data.get("requires_picture"),
+                        "free_relist": item_data.get("free_relist"),
                         "catalog_listing": item_data.get("catalog_listing", False),
                         "catalog_product_id": item_data.get("catalog_product_id"),
                         "family_name": item_data.get("family_name"),

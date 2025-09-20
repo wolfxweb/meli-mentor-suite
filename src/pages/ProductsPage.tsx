@@ -763,6 +763,7 @@ export const ProductsPage = () => {
     }
   };
 
+
   const loadItemDetails = async (itemId: string, competitorData?: any) => {
     setLoadingItemDetails(true);
     try {
@@ -1748,211 +1749,409 @@ export const ProductsPage = () => {
                     Informações detalhadas do anúncio no Mercado Livre
                   </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Informações Básicas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
+            <CardContent>
+              <Tabs defaultValue="basicas" className="w-full">
+                <TabsList className="grid w-full grid-cols-5">
+                  <TabsTrigger value="basicas">Básicas</TabsTrigger>
+                  <TabsTrigger value="tecnicas">Técnicas</TabsTrigger>
+                  <TabsTrigger value="atributos">Atributos</TabsTrigger>
+                  <TabsTrigger value="datas">Datas</TabsTrigger>
+                  <TabsTrigger value="links">Links</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="basicas" className="space-y-6 mt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Coluna Esquerda - Informações Principais */}
+                    <div className="space-y-6">
                       <div>
                         <Label className="text-sm font-medium text-gray-500">ID do Anúncio</Label>
-                        <p className="text-sm">{selectedProduct.id}</p>
+                        <p className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">{selectedProduct.id}</p>
                       </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Título</Label>
-                    <p className="text-sm font-medium">{selectedProduct.title}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Preço</Label>
-                    <div className="mt-1">
-                      {isOnSale(selectedProduct) ? (
-                        <div>
-                          {(() => {
-                            const salePriceInfo = (selectedProduct as any).sale_price_info;
-                            let currentPrice = selectedProduct.price;
-                            let originalPrice = selectedProduct.original_price || selectedProduct.base_price || selectedProduct.price;
-                            
-                            // Usar informações da nova API de preços se disponível
-                            if (salePriceInfo && salePriceInfo.regular_amount && salePriceInfo.amount) {
-                              currentPrice = salePriceInfo.amount;
-                              originalPrice = salePriceInfo.regular_amount;
-                            } else {
-                              // Fallback para API antiga
-                              if (!selectedProduct.original_price && selectedProduct.base_price && selectedProduct.base_price !== selectedProduct.price) {
-                                originalPrice = selectedProduct.base_price;
-                              }
-                            }
-                            
-                            const discount = originalPrice > currentPrice ? 
-                              Math.round(((originalPrice - currentPrice) / originalPrice) * 100) : 0;
-                            
-                            return (
-                              <>
-                                <p className="text-lg font-bold text-red-600">
-                                  R$ {currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                </p>
-                                {originalPrice > currentPrice && (
-                                  <p className="text-sm text-gray-500 line-through">
-                                    R$ {originalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                  </p>
-                                )}
-                                {discount > 0 && (
-                                  <p className="text-sm text-red-600 font-medium">
-                                    -{discount}%
-                                  </p>
-                                )}
-                              </>
-                            );
-                          })()}
+                      
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Título</Label>
+                        <p className="text-sm font-medium leading-relaxed">{selectedProduct.title}</p>
+                      </div>
+                      
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Preço</Label>
+                        <div className="mt-1">
+                          {isOnSale(selectedProduct) ? (
+                            <div>
+                              {(() => {
+                                const salePriceInfo = (selectedProduct as any).sale_price_info;
+                                let currentPrice = selectedProduct.price;
+                                let originalPrice = selectedProduct.original_price || selectedProduct.base_price || selectedProduct.price;
+                                
+                                // Usar informações da nova API de preços se disponível
+                                if (salePriceInfo && salePriceInfo.regular_amount && salePriceInfo.amount) {
+                                  currentPrice = salePriceInfo.amount;
+                                  originalPrice = salePriceInfo.regular_amount;
+                                } else {
+                                  // Fallback para API antiga
+                                  if (!selectedProduct.original_price && selectedProduct.base_price && selectedProduct.base_price !== selectedProduct.price) {
+                                    originalPrice = selectedProduct.base_price;
+                                  }
+                                }
+                                
+                                const discount = originalPrice > currentPrice ? 
+                                  Math.round(((originalPrice - currentPrice) / originalPrice) * 100) : 0;
+                                
+                                return (
+                                  <>
+                                    <p className="text-lg font-bold text-red-600">
+                                      R$ {currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </p>
+                                    {originalPrice > currentPrice && (
+                                      <p className="text-sm text-gray-500 line-through">
+                                        R$ {originalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      </p>
+                                    )}
+                                    {discount > 0 && (
+                                      <p className="text-sm text-red-600 font-medium">
+                                        -{discount}%
+                                      </p>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <p className="text-lg font-bold text-green-600">
+                              R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          )}
                         </div>
-                      ) : (
-                        <p className="text-lg font-bold text-green-600">
-                          R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Status</Label>
-                    <div className="mt-1">{getStatusBadge(selectedProduct.status)}</div>
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Estoque</Label>
-                    <p className="text-sm">{selectedProduct.available_quantity} unidades</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Vendidos</Label>
-                    <p className="text-sm">{selectedProduct.sold_quantity} unidades</p>
-                  </div>
+                      </div>
+                      
+          <div>
+            <Label className="text-sm font-medium text-gray-500">Status</Label>
+            <div className="mt-1">{getStatusBadge(selectedProduct.status)}</div>
+          </div>
+          
+        </div>
+                    
+                    {/* Coluna Direita - Estatísticas e Posicionamento */}
+                    <div className="space-y-6">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Estoque</Label>
+                        <p className="text-sm">{selectedProduct.available_quantity} unidades</p>
+                      </div>
+                      
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Vendidos</Label>
+                        <p className="text-sm">{selectedProduct.sold_quantity} unidades</p>
+                      </div>
+                      
                       <div>
                         <Label className="text-sm font-medium text-gray-500">Vendas no Full</Label>
                         <div className="mt-1">{getFullSalesBadge(selectedProduct)}</div>
                       </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">Tipo de Produto</Label>
-                        <div className="mt-1">{getCatalogBadge(selectedProduct)}</div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">Posição no Catálogo</Label>
-                        <div className="mt-1">{getCatalogPositionBadge(selectedProduct)}</div>
-                        {selectedProduct.catalog_position_info && (
-                          <div className="mt-2 space-y-1 text-xs text-gray-600">
-                            <p>Visibilidade: {selectedProduct.catalog_visit_share || 'N/A'}</p>
-                            {selectedProduct.catalog_competitors_sharing > 0 && (
-                              <p>Compartilhando com: {selectedProduct.catalog_competitors_sharing} vendedor(es)</p>
-                            )}
-                            {selectedProduct.catalog_price_to_win && (
-                              <p>Preço para ganhar: R$ {selectedProduct.catalog_price_to_win.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">Tipo de Listagem</Label>
-                        <p className="text-sm">{selectedProduct.listing_type_id}</p>
-                      </div>
-                </div>
-              </div>
-
-              {/* Informações Técnicas */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Informações Técnicas</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Categoria</Label>
-                    <p className="text-sm">{selectedProduct.category_id}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Condição</Label>
-                    <p className="text-sm capitalize">{selectedProduct.condition}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Moeda</Label>
-                    <p className="text-sm">{selectedProduct.currency_id}</p>
-                  </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">Domínio</Label>
-                        <p className="text-sm">{selectedProduct.domain_id || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">ID do Catálogo</Label>
-                        <p className="text-sm">{selectedProduct.catalog_product_id || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">Listagem de Catálogo</Label>
-                        <p className="text-sm">{selectedProduct.catalog_listing ? 'Sim' : 'Não'}</p>
-                      </div>
-                </div>
-              </div>
-
-              {/* Atributos do Produto */}
-              {selectedProduct.attributes && selectedProduct.attributes.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Atributos do Produto</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedProduct.attributes.map((attr, index) => (
-                      <div key={index} className="flex justify-between border-b pb-2">
-                        <span className="text-sm font-medium text-gray-500">{attr.name}:</span>
-                        <span className="text-sm">{attr.value_name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Tags */}
-              {selectedProduct.tags && selectedProduct.tags.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Tags</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedProduct.tags.map((tag, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Informações de Data */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Informações de Data</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Data de Criação</Label>
-                    <p className="text-sm">
-                      {new Date(selectedProduct.date_created).toLocaleString('pt-BR')}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Última Atualização</Label>
-                    <p className="text-sm">
-                      {new Date(selectedProduct.last_updated).toLocaleString('pt-BR')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Links */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Links</h3>
-                <div className="space-y-2">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Link do Produto</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-sm text-blue-600 truncate flex-1">{selectedProduct.permalink}</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.open(selectedProduct.permalink, '_blank')}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
+                      
+                      
                     </div>
                   </div>
-                </div>
-              </div>
+                  
+                  {/* Seção de Posição no Catálogo - Largura Total */}
+                  {selectedProduct.catalog_listing && selectedProduct.catalog_position_info && (
+                    <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                      <h4 className="text-lg font-semibold text-blue-900 mb-4">🏆 Posição no Catálogo</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-600 mb-1">
+                            {getCatalogPositionBadge(selectedProduct)}
+                          </div>
+                          <p className="text-sm text-gray-600">Posição Atual</p>
+                        </div>
+                        
+                        <div className="text-center">
+                          <div className="text-lg font-semibold text-green-600 mb-1">
+                            👁️ {selectedProduct.catalog_visit_share || 'N/A'}
+                          </div>
+                          <p className="text-sm text-gray-600">Visibilidade</p>
+                        </div>
+                        
+                        <div className="text-center">
+                          <div className="text-lg font-semibold text-purple-600 mb-1">
+                            💰 R$ {selectedProduct.catalog_price_to_win?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || 'N/A'}
+                          </div>
+                          <p className="text-sm text-gray-600">Preço para Ganhar</p>
+                        </div>
+                      </div>
+                      
+                      {selectedProduct.catalog_competitors_sharing > 0 && (
+                        <div className="mt-4 text-center">
+                          <p className="text-sm text-gray-600">
+                            Compartilhando com: <span className="font-semibold">{selectedProduct.catalog_competitors_sharing} vendedor(es)</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Seção de Custos - Largura Total da Modal */}
+                  {((selectedProduct.listing_fee_amount && selectedProduct.listing_fee_amount > 0) || (selectedProduct.sale_fee_amount && selectedProduct.sale_fee_amount > 0) || (selectedProduct.total_cost && selectedProduct.total_cost > 0)) && (
+                    <div className="mt-8 grid grid-cols-12 gap-4">
+                      {/* Card de Custos */}
+                      <div className="col-span-12 lg:col-span-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                        <h4 className="text-sm font-semibold text-green-900 mb-3">💰 Custos do Anúncio</h4>
+                      
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Tipo de Listagem:</span>
+                            <span className="text-sm font-medium text-blue-600">
+                              {selectedProduct.listing_type_name || selectedProduct.listing_type_id || 'N/A'}
+                            </span>
+                          </div>
+                          
+                          {selectedProduct.listing_fee_amount && selectedProduct.listing_fee_amount > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600">Custo de Listagem:</span>
+                              <span className="text-sm font-medium text-orange-600">
+                                R$ {selectedProduct.listing_fee_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {selectedProduct.sale_fee_percentage && selectedProduct.price && (
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-600">Comissão Percentual:</span>
+                                <span className="text-sm font-medium text-purple-600">
+                                  R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} × {selectedProduct.sale_fee_percentage}% = R$ {((selectedProduct.price * selectedProduct.sale_fee_percentage) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                              {selectedProduct.sale_fee_fixed && selectedProduct.sale_fee_fixed > 0 && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-600">Taxa Fixa:</span>
+                                  <span className="text-sm font-medium text-red-600">
+                                    R$ {selectedProduct.sale_fee_fixed.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex justify-between items-center border-t border-green-200 pt-1">
+                                <span className="text-sm font-semibold text-gray-700">Total Comissão:</span>
+                                <span className="text-sm font-bold text-purple-600">
+                                  R$ {selectedProduct.sale_fee_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {selectedProduct.sale_fee_percentage && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600">Percentual de Comissão:</span>
+                              <span className="text-sm font-medium text-purple-600">
+                                {selectedProduct.sale_fee_percentage}%
+                              </span>
+                            </div>
+                          )}
+                          
+                          <div className="border-t border-green-200 pt-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-semibold text-gray-700">Custo Total:</span>
+                              <span className="text-sm font-bold text-red-600">
+                                R$ {selectedProduct.total_cost?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Informações Adicionais */}
+                          {selectedProduct.free_relist && (
+                            <div className="mt-3 pt-2 border-t border-green-200">
+                              <div className="flex justify-between items-center text-xs text-green-600">
+                                <span>Relistagem Grátis:</span>
+                                <span>Sim</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Gráfico de Pizza - Distribuição de Custos */}
+                      <div className="col-span-12 lg:col-span-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                        <h4 className="text-sm font-semibold text-blue-900 mb-3">📊 Distribuição de Custos</h4>
+                        <div className="h-64">
+                          {(() => {
+                            const price = selectedProduct.price || 0;
+                            const totalCost = selectedProduct.total_cost || 0;
+                            const profit = price - totalCost;
+                            
+                            const data = [
+                              { name: "Lucro", value: profit, color: "#10b981" },
+                              { name: "Custos", value: totalCost, color: "#ef4444" }
+                            ].filter(item => item.value > 0);
+                            
+                            if (data.length === 0) return (
+                              <div className="flex items-center justify-center h-full text-gray-500">
+                                <p className="text-sm">Sem dados de custos</p>
+                              </div>
+                            );
+                            
+                            return (
+                              <div className="space-y-2">
+                                <div className="text-center">
+                                  <p className="text-lg font-bold text-gray-800">
+                                    R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </p>
+                                  <p className="text-xs text-gray-600">Preço de Venda</p>
+                                </div>
+                                
+                                <div className="flex justify-center">
+                                  <div className="w-40 h-40 relative">
+                                    <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                                      {data.map((item, index) => {
+                                        const percentage = (item.value / price) * 100;
+                                        const circumference = 2 * Math.PI * 40;
+                                        const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
+                                        const strokeDashoffset = index === 0 ? 0 : -((data[0].value / price) * circumference);
+                                        
+                                        return (
+                                          <circle
+                                            key={item.name}
+                                            cx="50"
+                                            cy="50"
+                                            r="40"
+                                            fill="none"
+                                            stroke={item.color}
+                                            strokeWidth="8"
+                                            strokeDasharray={strokeDasharray}
+                                            strokeDashoffset={strokeDashoffset}
+                                            className="transition-all duration-300"
+                                          />
+                                        );
+                                      })}
+                                    </svg>
+                                  </div>
+                                </div>
+                                
+                                <div className="space-y-1">
+                                  {data.map((item) => {
+                                    const percentage = ((item.value / price) * 100).toFixed(1);
+                                    return (
+                                      <div key={item.name} className="flex justify-between items-center text-xs">
+                                        <div className="flex items-center gap-2">
+                                          <div 
+                                            className="w-3 h-3 rounded-full" 
+                                            style={{ backgroundColor: item.color }}
+                                          />
+                                          <span className="text-gray-600">{item.name}</span>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="font-medium">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                          <span className="text-gray-500 ml-1">({percentage}%)</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="tecnicas" className="space-y-4 mt-6">
+                  <h3 className="text-lg font-semibold">Informações Técnicas</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Categoria</Label>
+                      <p className="text-sm">{selectedProduct.category_id}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Condição</Label>
+                      <p className="text-sm capitalize">{selectedProduct.condition}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Moeda</Label>
+                      <p className="text-sm">{selectedProduct.currency_id}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Domínio</Label>
+                      <p className="text-sm">{selectedProduct.domain_id || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">ID do Catálogo</Label>
+                      <p className="text-sm">{selectedProduct.catalog_product_id || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Listagem de Catálogo</Label>
+                      <p className="text-sm">{selectedProduct.catalog_listing ? 'Sim' : 'Não'}</p>
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="atributos" className="space-y-4 mt-6">
+                  {selectedProduct.attributes && selectedProduct.attributes.length > 0 ? (
+                    <>
+                      <h3 className="text-lg font-semibold">Atributos do Produto</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {selectedProduct.attributes.map((attr, index) => (
+                          <div key={index} className="flex justify-between border-b pb-2">
+                            <span className="text-sm font-medium text-gray-500">{attr.name}:</span>
+                            <span className="text-sm">{attr.value_name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-gray-500">Nenhum atributo disponível</p>
+                  )}
+                  
+                  {selectedProduct.tags && selectedProduct.tags.length > 0 && (
+                    <>
+                      <h3 className="text-lg font-semibold mt-6">Tags</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProduct.tags.map((tag, index) => (
+                          <Badge key={index} variant="outline" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </TabsContent>
+                
+                <TabsContent value="datas" className="space-y-4 mt-6">
+                  <h3 className="text-lg font-semibold">Informações de Data</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Data de Criação</Label>
+                      <p className="text-sm">
+                        {new Date(selectedProduct.date_created).toLocaleString('pt-BR')}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Última Atualização</Label>
+                      <p className="text-sm">
+                        {new Date(selectedProduct.last_updated).toLocaleString('pt-BR')}
+                      </p>
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="links" className="space-y-4 mt-6">
+                  <h3 className="text-lg font-semibold">Links</h3>
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Link do Produto</Label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-sm text-blue-600 truncate flex-1">{selectedProduct.permalink}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(selectedProduct.permalink, '_blank')}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
             <div className="flex justify-end p-6 pt-0">
               <Button variant="outline" onClick={() => {
@@ -2641,7 +2840,7 @@ export const ProductsPage = () => {
                 </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent>
               {loadingItemDetails ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin" />
@@ -2651,7 +2850,7 @@ export const ProductsPage = () => {
                 <>
                   {/* Aviso de Acesso Limitado */}
                   {selectedItemDetails.limited_access && (
-                    <Alert>
+                    <Alert className="mb-6">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription>
                         <strong>Acesso Limitado:</strong> Este anúncio não está disponível publicamente. 
@@ -2660,25 +2859,37 @@ export const ProductsPage = () => {
                     </Alert>
                   )}
                   
-                  {/* Informações Básicas */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-gray-800">📝 Informações Básicas</h4>
-                      <div className="space-y-2">
-                        <div><strong>ID:</strong> {selectedItemDetails.id}</div>
-                        <div><strong>Título:</strong> {selectedItemDetails.title}</div>
-                        <div><strong>Preço:</strong> R$ {selectedItemDetails.price?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                        {selectedItemDetails.original_price && (
-                          <div><strong>Preço Original:</strong> R$ {selectedItemDetails.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                        )}
-                        <div><strong>Quantidade Disponível:</strong> {selectedItemDetails.available_quantity || 'Não disponível'}</div>
-                        <div><strong>Quantidade Vendida:</strong> {selectedItemDetails.sold_quantity || 0}</div>
-                        <div><strong>Status:</strong> {selectedItemDetails.status}</div>
-                        <div><strong>Condição:</strong> {selectedItemDetails.condition}</div>
-                      </div>
-                    </div>
+                  <Tabs defaultValue="basicas" className="w-full">
+                    <TabsList className="grid w-full grid-cols-6">
+                      <TabsTrigger value="basicas">Básicas</TabsTrigger>
+                      <TabsTrigger value="vendedor">Vendedor</TabsTrigger>
+                      <TabsTrigger value="envio">Envio</TabsTrigger>
+                      <TabsTrigger value="atributos">Atributos</TabsTrigger>
+                      <TabsTrigger value="imagens">Imagens</TabsTrigger>
+                      <TabsTrigger value="url">URL</TabsTrigger>
+                    </TabsList>
                     
-                    <div className="space-y-3">
+                    <TabsContent value="basicas" className="space-y-4 mt-6">
+                      <h4 className="font-semibold text-gray-800">📝 Informações Básicas</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div><strong>ID:</strong> {selectedItemDetails.id}</div>
+                          <div><strong>Título:</strong> {selectedItemDetails.title}</div>
+                          <div><strong>Preço:</strong> R$ {selectedItemDetails.price?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                          {selectedItemDetails.original_price && (
+                            <div><strong>Preço Original:</strong> R$ {selectedItemDetails.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <div><strong>Quantidade Disponível:</strong> {selectedItemDetails.available_quantity || 'Não disponível'}</div>
+                          <div><strong>Quantidade Vendida:</strong> {selectedItemDetails.sold_quantity || 0}</div>
+                          <div><strong>Status:</strong> {selectedItemDetails.status}</div>
+                          <div><strong>Condição:</strong> {selectedItemDetails.condition}</div>
+                        </div>
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="vendedor" className="space-y-4 mt-6">
                       <h4 className="font-semibold text-gray-800">🏪 Informações do Vendedor</h4>
                       <div className="space-y-2">
                         <div><strong>ID do Vendedor:</strong> {selectedItemDetails.seller_id}</div>
@@ -2690,128 +2901,125 @@ export const ProductsPage = () => {
                           </>
                         )}
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Informações de Envio */}
-                  {selectedItemDetails.shipping && (
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-gray-800">🚚 Informações de Envio</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <div><strong>Modo de Envio:</strong> {selectedItemDetails.shipping.mode}</div>
-                          <div><strong>Tipo Logístico:</strong> {selectedItemDetails.shipping.logistic_type}</div>
-                          <div><strong>Frete Grátis:</strong> {selectedItemDetails.shipping.free_shipping ? 'Sim' : 'Não'}</div>
-                        </div>
-                        {selectedItemDetails.shipping.tags && selectedItemDetails.shipping.tags.length > 0 && (
-                          <div>
-                            <strong>Tags de Envio:</strong>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {selectedItemDetails.shipping.tags.map((tag: string, index: number) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
+                    </TabsContent>
+                    
+                    <TabsContent value="envio" className="space-y-4 mt-6">
+                      {selectedItemDetails.shipping ? (
+                        <>
+                          <h4 className="font-semibold text-gray-800">🚚 Informações de Envio</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <div><strong>Modo de Envio:</strong> {selectedItemDetails.shipping.mode}</div>
+                              <div><strong>Tipo Logístico:</strong> {selectedItemDetails.shipping.logistic_type}</div>
+                              <div><strong>Frete Grátis:</strong> {selectedItemDetails.shipping.free_shipping ? 'Sim' : 'Não'}</div>
                             </div>
+                            {selectedItemDetails.shipping.tags && selectedItemDetails.shipping.tags.length > 0 && (
+                              <div>
+                                <strong>Tags de Envio:</strong>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {selectedItemDetails.shipping.tags.map((tag: string, index: number) => (
+                                    <Badge key={index} variant="outline" className="text-xs">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-gray-500">Nenhuma informação de envio disponível</p>
+                      )}
+                    </TabsContent>
+                    
+                    <TabsContent value="atributos" className="space-y-4 mt-6">
+                      {selectedItemDetails.attributes && selectedItemDetails.attributes.length > 0 ? (
+                        <>
+                          <h4 className="font-semibold text-gray-800">🏷️ Atributos do Produto</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {selectedItemDetails.attributes.map((attr: any, index: number) => (
+                              <div key={index} className="flex justify-between p-2 bg-gray-50 rounded">
+                                <span className="font-medium">{attr.name}:</span>
+                                <span>{attr.value_name || attr.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-gray-500">Nenhum atributo disponível</p>
+                      )}
+                    </TabsContent>
+                    
+                    <TabsContent value="imagens" className="space-y-4 mt-6">
+                      {selectedItemDetails.pictures && selectedItemDetails.pictures.length > 0 ? (
+                        <>
+                          <h4 className="font-semibold text-gray-800">🖼️ Imagens do Produto</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {selectedItemDetails.pictures.map((pic: any, index: number) => (
+                              <img
+                                key={index}
+                                src={pic.url}
+                                alt={`Imagem ${index + 1}`}
+                                className="w-full h-24 object-cover rounded border"
+                              />
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-gray-500">Nenhuma imagem disponível</p>
+                      )}
+                    </TabsContent>
+                    
+                    <TabsContent value="url" className="space-y-4 mt-6">
+                      <h4 className="font-semibold text-gray-800">🔗 URL do Anúncio</h4>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={manualUrl}
+                            onChange={(e) => setManualUrl(e.target.value)}
+                            placeholder="Digite a URL do anúncio..."
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <Button
+                            onClick={() => saveManualUrl(selectedItemDetails.id, manualUrl)}
+                            disabled={savingUrl || !manualUrl.trim()}
+                            size="sm"
+                          >
+                            {savingUrl ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Salvando...
+                              </>
+                            ) : (
+                              '💾 Salvar'
+                            )}
+                          </Button>
+                        </div>
+                        {selectedItemDetails.url && (
+                          <div className="text-sm text-gray-600">
+                            <strong>URL Automática:</strong> {selectedItemDetails.url}
                           </div>
                         )}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Atributos */}
-                  {selectedItemDetails.attributes && selectedItemDetails.attributes.length > 0 && (
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-gray-800">🏷️ Atributos do Produto</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {selectedItemDetails.attributes.slice(0, 10).map((attr: any, index: number) => (
-                          <div key={index} className="flex justify-between p-2 bg-gray-50 rounded">
-                            <span className="font-medium">{attr.name}:</span>
-                            <span>{attr.value_name || attr.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                      {selectedItemDetails.attributes.length > 10 && (
-                        <p className="text-sm text-gray-500">
-                          ... e mais {selectedItemDetails.attributes.length - 10} atributos
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Imagens */}
-                  {selectedItemDetails.pictures && selectedItemDetails.pictures.length > 0 && (
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-gray-800">🖼️ Imagens do Produto</h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {selectedItemDetails.pictures.slice(0, 4).map((pic: any, index: number) => (
-                          <img
-                            key={index}
-                            src={pic.url}
-                            alt={`Imagem ${index + 1}`}
-                            className="w-full h-24 object-cover rounded border"
-                          />
-                        ))}
-                      </div>
-                      {selectedItemDetails.pictures.length > 4 && (
-                        <p className="text-sm text-gray-500">
-                          ... e mais {selectedItemDetails.pictures.length - 4} imagens
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* URL Manual */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-800">🔗 URL do Anúncio</h4>
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={manualUrl}
-                          onChange={(e) => setManualUrl(e.target.value)}
-                          placeholder="Digite a URL do anúncio..."
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <Button
-                          onClick={() => saveManualUrl(selectedItemDetails.id, manualUrl)}
-                          disabled={savingUrl || !manualUrl.trim()}
-                          size="sm"
-                        >
-                          {savingUrl ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Salvando...
-                            </>
-                          ) : (
-                            '💾 Salvar'
-                          )}
-                        </Button>
-                      </div>
-                      {selectedItemDetails.url && (
-                        <div className="text-sm text-gray-600">
-                          <strong>URL Automática:</strong> {selectedItemDetails.url}
+                      
+                      <div className="space-y-3 mt-6">
+                        <h4 className="font-semibold text-gray-800">📅 Datas</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><strong>Data de Criação:</strong> {
+                            selectedItemDetails.date_created === 'Não disponível' 
+                              ? 'Não disponível' 
+                              : new Date(selectedItemDetails.date_created).toLocaleString('pt-BR')
+                          }</div>
+                          <div><strong>Última Atualização:</strong> {
+                            selectedItemDetails.last_updated === 'Não disponível' 
+                              ? 'Não disponível' 
+                              : new Date(selectedItemDetails.last_updated).toLocaleString('pt-BR')
+                          }</div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Datas */}
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-gray-800">📅 Datas</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><strong>Data de Criação:</strong> {
-                        selectedItemDetails.date_created === 'Não disponível' 
-                          ? 'Não disponível' 
-                          : new Date(selectedItemDetails.date_created).toLocaleString('pt-BR')
-                      }</div>
-                      <div><strong>Última Atualização:</strong> {
-                        selectedItemDetails.last_updated === 'Não disponível' 
-                          ? 'Não disponível' 
-                          : new Date(selectedItemDetails.last_updated).toLocaleString('pt-BR')
-                      }</div>
-                    </div>
-                  </div>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 </>
               )}
             </CardContent>

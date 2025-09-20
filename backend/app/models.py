@@ -124,8 +124,19 @@ class MercadoLivreAnnouncement(Base):
     
     # Informações de listagem
     listing_type_id = Column(String(100), nullable=True)  # gold_special, classic, etc
+    listing_type_name = Column(String(100), nullable=True)  # Clássico, Premium, etc
+    listing_exposure = Column(String(50), nullable=True)  # highest, high, mid, low, lowest
     category_id = Column(String(100), nullable=True)
     domain_id = Column(String(100), nullable=True)
+    
+    # Informações de custos
+    listing_fee_amount = Column(Numeric(12, 2), nullable=True)  # Custo de listagem
+    sale_fee_amount = Column(Numeric(12, 2), nullable=True)  # Custo de venda total
+    sale_fee_percentage = Column(Numeric(5, 2), nullable=True)  # Percentual de comissão
+    sale_fee_fixed = Column(Numeric(12, 2), nullable=True)  # Taxa fixa de venda
+    total_cost = Column(Numeric(12, 2), nullable=True)  # Custo total (listagem + venda)
+    requires_picture = Column(Boolean, default=True)  # Se requer imagem
+    free_relist = Column(Boolean, default=False)  # Se tem relistagem grátis
     
     # Informações de catálogo
     catalog_listing = Column(Boolean, default=False)
