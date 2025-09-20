@@ -1751,22 +1751,32 @@ export const ProductsPage = () => {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="basicas" className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="basicas">Básicas</TabsTrigger>
                   <TabsTrigger value="tecnicas">Técnicas</TabsTrigger>
                   <TabsTrigger value="atributos">Atributos</TabsTrigger>
-                  <TabsTrigger value="datas">Datas</TabsTrigger>
-                  <TabsTrigger value="links">Links</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="basicas" className="space-y-6 mt-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Coluna Esquerda - Informações Principais */}
                     <div className="space-y-6">
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">ID do Anúncio</Label>
-                        <p className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">{selectedProduct.id}</p>
-                      </div>
+          <div>
+            <Label className="text-sm font-medium text-gray-500">ID do Anúncio</Label>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-sm font-mono bg-gray-100 px-2 py-1 rounded flex-1">{selectedProduct.id}</p>
+              {selectedProduct.permalink && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.open(selectedProduct.permalink, '_blank')}
+                  className="h-8 w-8 p-0"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </div>
                       
                       <div>
                         <Label className="text-sm font-medium text-gray-500">Título</Label>
@@ -1848,6 +1858,19 @@ export const ProductsPage = () => {
                         <div className="mt-1">{getFullSalesBadge(selectedProduct)}</div>
                       </div>
                       
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Data de Criação</Label>
+                        <p className="text-sm">
+                          {new Date(selectedProduct.date_created).toLocaleString('pt-BR')}
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Última Atualização</Label>
+                        <p className="text-sm">
+                          {new Date(selectedProduct.last_updated).toLocaleString('pt-BR')}
+                        </p>
+                      </div>
                       
                     </div>
                   </div>
@@ -2115,42 +2138,7 @@ export const ProductsPage = () => {
                   )}
                 </TabsContent>
                 
-                <TabsContent value="datas" className="space-y-4 mt-6">
-                  <h3 className="text-lg font-semibold">Informações de Data</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Data de Criação</Label>
-                      <p className="text-sm">
-                        {new Date(selectedProduct.date_created).toLocaleString('pt-BR')}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Última Atualização</Label>
-                      <p className="text-sm">
-                        {new Date(selectedProduct.last_updated).toLocaleString('pt-BR')}
-                      </p>
-                    </div>
-                  </div>
-                </TabsContent>
                 
-                <TabsContent value="links" className="space-y-4 mt-6">
-                  <h3 className="text-lg font-semibold">Links</h3>
-                  <div className="space-y-2">
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Link do Produto</Label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <p className="text-sm text-blue-600 truncate flex-1">{selectedProduct.permalink}</p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => window.open(selectedProduct.permalink, '_blank')}
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
               </Tabs>
             </CardContent>
             <div className="flex justify-end p-6 pt-0">
