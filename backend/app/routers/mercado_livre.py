@@ -7,6 +7,7 @@ from app.auth import get_current_user
 from app.services.mercado_livre import mercado_livre_service
 from typing import Optional
 import logging
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -301,5 +302,103 @@ async def handle_notifications_callback(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro ao processar notificação"
+        )
+
+@router.get("/item-details/{item_id}")
+async def get_item_details(
+    item_id: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca detalhes de um anúncio específico via API do Mercado Livre."""
+    try:
+        async with httpx.AsyncClient() as client:
+            # Primeiro, tentar buscar como anúncio público (sem autenticação)
+            response = await client.get(
+                f"https://api.mercadolibre.com/items/{item_id}"
+            )
+            
+            if response.status_code == 200:
+                item_data = response.json()
+                logger.info(f"Item details retrieved successfully for {item_id} (public)")
+                return item_data
+            elif response.status_code == 404:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Anúncio não encontrado no Mercado Livre"
+                )
+            elif response.status_code == 403:
+                # Se for anúncio privado ou restrito, tentar com token do usuário
+                integration = db.query(MercadoLivreIntegration).filter(
+                    MercadoLivreIntegration.company_id == current_user.company_id,
+                    MercadoLivreIntegration.is_active == True
+                ).first()
+                
+                if not integration:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Anúncio não está disponível publicamente e você não tem permissão para acessá-lo"
+                    )
+                
+                # Tentar com token autenticado
+                response = await client.get(
+                    f"https://api.mercadolibre.com/items/{item_id}",
+                    headers={"Authorization": f"Bearer {integration.access_token}"}
+                )
+                
+                if response.status_code == 200:
+                    item_data = response.json()
+                    logger.info(f"Item details retrieved successfully for {item_id} (authenticated)")
+                    return item_data
+                elif response.status_code == 401:
+                    # Token pode ter expirado, tentar renovar
+                    try:
+                        if integration.refresh_token:
+                            token_response = await mercado_livre_service.refresh_access_token(
+                                integration.refresh_token
+                            )
+                            updated_integration = mercado_livre_service.save_integration(
+                                db, current_user.company_id, token_response
+                            )
+                            
+                            # Tentar novamente com o novo token
+                            response = await client.get(
+                                f"https://api.mercadolibre.com/items/{item_id}",
+                                headers={"Authorization": f"Bearer {updated_integration.access_token}"}
+                            )
+                            
+                            if response.status_code == 200:
+                                item_data = response.json()
+                                return item_data
+                    except Exception as refresh_error:
+                        logger.error(f"Error refreshing token: {refresh_error}")
+                    
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token de acesso expirado ou inválido"
+                    )
+                elif response.status_code == 403:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Anúncio não está disponível ou você não tem permissão para acessá-lo"
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail=f"Erro ao buscar detalhes do anúncio: {response.text}"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Erro ao buscar detalhes do anúncio: {response.text}"
+                )
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar detalhes do item {item_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao buscar detalhes do anúncio"
         )
 

@@ -163,3 +163,49 @@ class MercadoLivreAnnouncement(Base):
     
     # Relationships
     company = relationship("Company")
+
+class CatalogCompetitor(Base):
+    __tablename__ = "catalog_competitors"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    catalog_product_id = Column(String(255), nullable=False, index=True)  # Ex: MLB32810672
+    
+    # Dados do anúncio concorrente
+    item_id = Column(String(255), nullable=False, unique=True, index=True)
+    title = Column(String(500), nullable=False)
+    price = Column(Numeric(12, 2), nullable=False)
+    original_price = Column(Numeric(12, 2), nullable=True)
+    condition = Column(String(50), nullable=False)
+    available_quantity = Column(Integer, default=0)
+    sold_quantity = Column(Integer, default=0)
+    permalink = Column(Text, nullable=True)
+    url = Column(Text, nullable=True)  # URL do anúncio
+    manual_url = Column(Text, nullable=True)  # URL manual do anúncio
+    
+    # Dados do vendedor
+    seller_id = Column(String(255), nullable=False)
+    seller_nickname = Column(String(255), nullable=True)
+    seller_reputation_level = Column(String(50), nullable=True)
+    seller_power_status = Column(String(50), nullable=True)
+    seller_transactions_total = Column(Integer, default=0)
+    
+    # Dados de envio
+    shipping_mode = Column(String(50), nullable=True)
+    shipping_logistic_type = Column(String(50), nullable=True)
+    shipping_free = Column(Boolean, default=False)
+    shipping_tags = Column(JSON, nullable=True)
+    
+    # Dados adicionais
+    listing_type_id = Column(String(100), nullable=True)
+    tags = Column(JSON, nullable=True)
+    deal_ids = Column(JSON, nullable=True)
+    
+    # Timestamps
+    ml_date_created = Column(DateTime, nullable=True)
+    ml_last_updated = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    company = relationship("Company")

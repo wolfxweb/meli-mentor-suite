@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import auth, users, mercado_livre, products
 from app.database import engine, Base
-from app.models import User, Company, MercadoLivreIntegration  # Import models to ensure they're registered
+from app.models import User, Company, MercadoLivreIntegration, CatalogCompetitor  # Import models to ensure they're registered
 
 # Create database tables
 Base.metadata.create_all(bind=engine)

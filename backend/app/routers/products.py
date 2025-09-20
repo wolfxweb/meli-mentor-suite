@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.auth import get_current_user
 from app.services.mercado_livre import mercado_livre_service
+from app.models import MercadoLivreAnnouncement, CatalogCompetitor
 from typing import Optional, List, Dict, Any
 import logging
 import httpx
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -868,4 +870,272 @@ async def get_catalog_competitors(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro interno ao buscar concorrentes"
+        )
+
+@router.post("/catalog-competitors/sync/{catalog_product_id}")
+async def sync_catalog_competitors(
+    catalog_product_id: str,
+    db: Session = Depends(get_db)
+):
+    """Sincroniza concorrentes do catálogo salvando no banco de dados."""
+    try:
+        # Buscar qualquer integração ativa (dados públicos)
+        from app.models import MercadoLivreIntegration
+        integration = db.query(MercadoLivreIntegration).filter(
+            MercadoLivreIntegration.is_active == True
+        ).first()
+        
+        if not integration:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nenhuma integração ativa encontrada."
+            )
+        
+        valid_token = integration.access_token
+        
+        # Buscar concorrentes do catálogo usando a API do Mercado Livre
+        async with httpx.AsyncClient() as client:
+            headers = {"Authorization": f"Bearer {valid_token}"}
+            
+            response = await client.get(
+                f"https://api.mercadolibre.com/products/{catalog_product_id}/items",
+                headers=headers
+            )
+            
+            if response.status_code == 404:
+                return {"message": "Produto do catálogo não encontrado", "synced": 0, "removed": 0}
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            # Obter lista atual de concorrentes no banco para este produto
+            existing_competitors = db.query(CatalogCompetitor).filter(
+                CatalogCompetitor.catalog_product_id == catalog_product_id
+            ).all()
+            
+            existing_item_ids = {comp.item_id for comp in existing_competitors}
+            current_item_ids = set()
+            
+            # Processar os resultados da API
+            synced_count = 0
+            for item in data.get("results", []):
+                item_id = item.get("item_id")
+                if not item_id:
+                    continue
+                    
+                current_item_ids.add(item_id)
+                
+                # Obter informações do vendedor
+                seller_info = {}
+                if item.get("seller_id"):
+                    try:
+                        seller_response = await client.get(
+                            f"https://api.mercadolibre.com/users/{item.get('seller_id')}",
+                            headers=headers
+                        )
+                        if seller_response.status_code == 200:
+                            seller_data = seller_response.json()
+                            seller_info = {
+                                "nickname": seller_data.get("nickname"),
+                                "reputation_level": seller_data.get("seller_reputation", {}).get("level_id"),
+                                "power_status": seller_data.get("seller_reputation", {}).get("power_seller_status"),
+                                "transactions_total": seller_data.get("seller_reputation", {}).get("transactions", {}).get("total", 0)
+                            }
+                    except Exception as e:
+                        logger.warning(f"Erro ao obter informações do vendedor {item.get('seller_id')}: {e}")
+                
+                # Obter informações de preços (original_price se houver desconto)
+                original_price = None
+                if item.get("original_price") and item.get("original_price") != item.get("price"):
+                    original_price = item.get("original_price")
+                
+                # Criar URL do anúncio
+                product_title = item.get("title", "")
+                import re
+                clean_title = re.sub(r'[^a-z0-9\s-]', '', product_title.lower())
+                clean_title = re.sub(r'\s+', '-', clean_title)
+                clean_title = re.sub(r'-+', '-', clean_title)
+                clean_title = clean_title.strip('-')
+                item_url = f"https://produto.mercadolivre.com.br/{item_id}-{clean_title}"
+                
+                # Verificar se já existe no banco
+                existing_competitor = db.query(CatalogCompetitor).filter(
+                    CatalogCompetitor.item_id == item_id
+                ).first()
+                
+                if existing_competitor:
+                    # Atualizar dados existentes
+                    existing_competitor.title = item.get("title", "")
+                    existing_competitor.price = item.get("price", 0)
+                    existing_competitor.original_price = item.get("original_price")
+                    existing_competitor.condition = item.get("condition", "")
+                    existing_competitor.available_quantity = item.get("available_quantity", 0)
+                    existing_competitor.sold_quantity = item.get("sold_quantity", 0)
+                    existing_competitor.permalink = item.get("permalink", "")
+                    existing_competitor.url = item_url
+                    existing_competitor.seller_nickname = seller_info.get("nickname")
+                    existing_competitor.seller_reputation_level = seller_info.get("reputation_level")
+                    existing_competitor.seller_power_status = seller_info.get("power_status")
+                    existing_competitor.seller_transactions_total = seller_info.get("transactions_total", 0)
+                    existing_competitor.shipping_mode = item.get("shipping", {}).get("mode")
+                    existing_competitor.shipping_logistic_type = item.get("shipping", {}).get("logistic_type")
+                    existing_competitor.shipping_free = item.get("shipping", {}).get("free_shipping", False)
+                    existing_competitor.shipping_tags = item.get("shipping", {}).get("tags", [])
+                    existing_competitor.listing_type_id = item.get("listing_type_id")
+                    existing_competitor.tags = item.get("tags", [])
+                    existing_competitor.deal_ids = item.get("deal_ids", [])
+                    existing_competitor.ml_date_created = datetime.fromisoformat(item.get("date_created", "").replace("Z", "+00:00")) if item.get("date_created") else None
+                    existing_competitor.ml_last_updated = datetime.fromisoformat(item.get("last_updated", "").replace("Z", "+00:00")) if item.get("last_updated") else None
+                    existing_competitor.updated_at = datetime.utcnow()
+                else:
+                    # Criar novo registro
+                    new_competitor = CatalogCompetitor(
+                        company_id=integration.company_id,
+                        catalog_product_id=catalog_product_id,
+                        item_id=item_id,
+                        title=item.get("title", ""),
+                        price=item.get("price", 0),
+                        original_price=item.get("original_price"),
+                        condition=item.get("condition", ""),
+                        available_quantity=item.get("available_quantity", 0),
+                        sold_quantity=item.get("sold_quantity", 0),
+                        permalink=item.get("permalink", ""),
+                        url=item_url,
+                        seller_id=str(item.get("seller_id", "")),
+                        seller_nickname=seller_info.get("nickname"),
+                        seller_reputation_level=seller_info.get("reputation_level"),
+                        seller_power_status=seller_info.get("power_status"),
+                        seller_transactions_total=seller_info.get("transactions_total", 0),
+                        shipping_mode=item.get("shipping", {}).get("mode"),
+                        shipping_logistic_type=item.get("shipping", {}).get("logistic_type"),
+                        shipping_free=item.get("shipping", {}).get("free_shipping", False),
+                        shipping_tags=item.get("shipping", {}).get("tags", []),
+                        listing_type_id=item.get("listing_type_id"),
+                        tags=item.get("tags", []),
+                        deal_ids=item.get("deal_ids", []),
+                        ml_date_created=datetime.fromisoformat(item.get("date_created", "").replace("Z", "+00:00")) if item.get("date_created") else None,
+                        ml_last_updated=datetime.fromisoformat(item.get("last_updated", "").replace("Z", "+00:00")) if item.get("last_updated") else None
+                    )
+                    db.add(new_competitor)
+                
+                synced_count += 1
+            
+            # Remover concorrentes que não estão mais na API
+            removed_count = 0
+            for competitor in existing_competitors:
+                if competitor.item_id not in current_item_ids:
+                    db.delete(competitor)
+                    removed_count += 1
+            
+            db.commit()
+            
+            return {
+                "message": f"Sincronização concluída para o produto {catalog_product_id}",
+                "synced": synced_count,
+                "removed": removed_count,
+                "total_current": len(current_item_ids)
+            }
+            
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Erro HTTP ao sincronizar concorrentes: {e}")
+        if e.response.status_code == 404:
+            return {"message": "Produto do catálogo não encontrado", "synced": 0, "removed": 0}
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Erro ao sincronizar concorrentes no Mercado Livre"
+        )
+    except Exception as e:
+        logger.error(f"Erro ao sincronizar concorrentes: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao sincronizar concorrentes"
+        )
+
+@router.get("/catalog-competitors/db/{catalog_product_id}")
+async def get_catalog_competitors_from_db(
+    catalog_product_id: str,
+    db: Session = Depends(get_db)
+):
+    """Obtém concorrentes do catálogo salvos no banco de dados."""
+    try:
+        competitors = db.query(CatalogCompetitor).filter(
+            CatalogCompetitor.catalog_product_id == catalog_product_id
+        ).order_by(CatalogCompetitor.price.asc()).all()
+        
+        # Converter para formato compatível com o frontend
+        result = []
+        for comp in competitors:
+            competitor_data = {
+                "item_id": comp.item_id,
+                "title": comp.title,
+                "price": float(comp.price),
+                "original_price": float(comp.original_price) if comp.original_price else None,
+                "condition": comp.condition,
+                "available_quantity": comp.available_quantity,
+                "sold_quantity": comp.sold_quantity,
+                "url": comp.url,
+                "manual_url": comp.manual_url,
+                "seller": {
+                    "seller_id": comp.seller_id,
+                    "nickname": comp.seller_nickname,
+                    "reputation_level_id": comp.seller_reputation_level,
+                    "power_seller_status": comp.seller_power_status,
+                    "transactions": {
+                        "total": comp.seller_transactions_total
+                    }
+                },
+                "shipping": {
+                    "mode": comp.shipping_mode,
+                    "logistic_type": comp.shipping_logistic_type,
+                    "free_shipping": comp.shipping_free,
+                    "tags": comp.shipping_tags or []
+                },
+                "listing_type_id": comp.listing_type_id,
+                "tags": comp.tags or [],
+                "deal_ids": comp.deal_ids or []
+            }
+            result.append(competitor_data)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar concorrentes do banco: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao buscar concorrentes"
+        )
+
+@router.put("/catalog-competitors/{item_id}/manual-url")
+async def update_manual_url(
+    item_id: str,
+    request_data: dict,
+    db: Session = Depends(get_db)
+):
+    """Atualiza a URL manual de um concorrente do catálogo."""
+    try:
+        manual_url = request_data.get("manual_url", "")
+        
+        competitor = db.query(CatalogCompetitor).filter(
+            CatalogCompetitor.item_id == item_id
+        ).first()
+        
+        if not competitor:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Concorrente não encontrado"
+            )
+        
+        competitor.manual_url = manual_url
+        competitor.updated_at = datetime.utcnow()
+        db.commit()
+        
+        return {"message": "URL manual atualizada com sucesso", "item_id": item_id, "manual_url": manual_url}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao atualizar URL manual: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao atualizar URL manual"
         )
