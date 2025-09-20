@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, users, mercado_livre
+from app.routers import auth, users, mercado_livre, products
 from app.database import engine, Base
 from app.models import User, Company, MercadoLivreIntegration  # Import models to ensure they're registered
 
@@ -31,6 +31,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(mercado_livre.router, prefix="/api/mercado-livre", tags=["Mercado Livre Integration"])
+app.include_router(products.router, prefix="/api/mercado-livre", tags=["Products Management"])
 
 @app.get("/")
 async def root():

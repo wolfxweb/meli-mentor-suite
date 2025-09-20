@@ -60,7 +60,7 @@ services:
     depends_on:
       - backend
     environment:
-      - VITE_API_URL=https://95e3e8757a41.ngrok-free.app
+      - VITE_API_URL=http://localhost:8000
 
 volumes:
   postgres_data:

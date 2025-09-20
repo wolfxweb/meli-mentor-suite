@@ -13,6 +13,7 @@ import { RegisterPage } from "@/pages/RegisterPage";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { AccountPage } from "@/pages/AccountPage";
+import { ProductsPage } from "@/pages/ProductsPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,9 +40,9 @@ const App = () => (
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="account" element={<AccountPage />} />
+              <Route path="products" element={<ProductsPage />} />
               
               {/* Placeholder routes - will be implemented */}
-              <Route path="products" element={<div className="p-6"><h1 className="text-2xl font-bold">Produtos - Em Desenvolvimento</h1></div>} />
               <Route path="financial" element={<div className="p-6"><h1 className="text-2xl font-bold">Financeiro - Em Desenvolvimento</h1></div>} />
               <Route path="forecasts" element={<div className="p-6"><h1 className="text-2xl font-bold">Previsões - Em Desenvolvimento</h1></div>} />
               <Route path="accounts" element={<div className="p-6"><h1 className="text-2xl font-bold">Contas - Em Desenvolvimento</h1></div>} />

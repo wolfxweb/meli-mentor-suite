@@ -155,3 +155,65 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+# Mercado Livre Product Schemas
+class MercadoLivreProductPicture(BaseModel):
+    id: str
+    url: str
+    secure_url: str
+
+class MercadoLivreProductAttribute(BaseModel):
+    id: str
+    name: str
+    value_name: str
+
+class ProductResponse(BaseModel):
+    id: str
+    title: str
+    price: float
+    currency_id: str
+    available_quantity: int
+    sold_quantity: int
+    condition: str
+    permalink: str
+    thumbnail: str
+    pictures: List[MercadoLivreProductPicture]
+    attributes: List[MercadoLivreProductAttribute]
+    status: str
+    listing_type_id: str
+    category_id: str
+    date_created: str
+    last_updated: str
+    tags: Optional[List[str]] = None
+    health: Optional[int] = None
+    catalog_listing: Optional[bool] = None
+    catalog_product_id: Optional[str] = None
+    domain_id: Optional[str] = None
+    initial_quantity: Optional[int] = None
+    base_price: Optional[float] = None
+    original_price: Optional[float] = None
+    sub_status: Optional[List[str]] = None
+    family_name: Optional[str] = None
+    user_product_id: Optional[str] = None
+    family_id: Optional[str] = None
+    inventory_id: Optional[str] = None  # Campo para identificar produtos Full
+
+class ProductCreate(BaseModel):
+    title: str
+    price: float
+    available_quantity: int
+    condition: str
+    description: str
+    category_id: str
+    pictures: List[str]
+    attributes: List[dict]
+
+class ProductUpdate(BaseModel):
+    title: Optional[str] = None
+    price: Optional[float] = None
+    available_quantity: Optional[int] = None
+    condition: Optional[str] = None
+    description: Optional[str] = None
+    category_id: Optional[str] = None
+    pictures: Optional[List[str]] = None
+    attributes: Optional[List[dict]] = None
