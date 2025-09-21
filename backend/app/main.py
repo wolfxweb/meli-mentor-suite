@@ -19,6 +19,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000", 
         "http://localhost:5173",
+        "https://a0f0011eda59.ngrok-free.app",
         "https://95e3e8757a41.ngrok-free.app",
         "https://3eea371eeddd.ngrok-free.app"
     ],  # Frontend URLs

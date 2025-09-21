@@ -185,3 +185,4 @@ class MercadoLivreService:
 # Instância global do serviço
 mercado_livre_service = MercadoLivreService()
 
+

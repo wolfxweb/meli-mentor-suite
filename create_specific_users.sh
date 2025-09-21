@@ -46,3 +46,4 @@ echo "   • teste@teste.com (senha: teste) - Teste Sistemas EIRELI"
 echo ""
 echo "🌐 Acesse o sistema em: http://localhost:5173"
 
+

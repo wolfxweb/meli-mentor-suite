@@ -45,6 +45,16 @@ class MercadoLivreApiService {
     this.token = localStorage.getItem('auth_token');
   }
 
+  // Método para atualizar o token
+  updateToken(token: string | null) {
+    this.token = token;
+    if (token) {
+      localStorage.setItem('auth_token', token);
+    } else {
+      localStorage.removeItem('auth_token');
+    }
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -169,6 +179,16 @@ class MercadoLivreApiService {
     const url = new URL(window.location.href);
     url.search = '';
     window.history.replaceState({}, '', url.toString());
+  }
+
+  // Método para buscar produtos
+  async getProducts(limit: number = 50, offset: number = 0): Promise<any> {
+    return this.request(`/api/mercado-livre/products?limit=${limit}&offset=${offset}`);
+  }
+
+  // Método para buscar um produto específico por ID
+  async getProduct(productId: string): Promise<any> {
+    return this.request(`/api/mercado-livre/announcements/${productId}`);
   }
 }
 

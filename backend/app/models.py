@@ -138,6 +138,14 @@ class MercadoLivreAnnouncement(Base):
     requires_picture = Column(Boolean, default=True)  # Se requer imagem
     free_relist = Column(Boolean, default=False)  # Se tem relistagem grátis
     
+    # Informações adicionais de custos
+    product_cost = Column(Numeric(12, 2), nullable=True)  # Custo do produto
+    taxes = Column(Text, nullable=True)  # Impostos (ICMS, PIS, COFINS, etc.)
+    ads_cost = Column(Text, nullable=True)  # Anúncios ADS (Google Ads, Facebook Ads, etc.)
+    shipping_cost = Column(Numeric(12, 2), nullable=True)  # Valor do frete
+    additional_fees = Column(Text, nullable=True)  # Taxas adicionais
+    additional_notes = Column(Text, nullable=True)  # Observações adicionais
+    
     # Informações de catálogo
     catalog_listing = Column(Boolean, default=False)
     catalog_product_id = Column(String(255), nullable=True)

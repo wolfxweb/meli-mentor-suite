@@ -11,9 +11,17 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: [
       "localhost",
       "127.0.0.1",
+      "a0f0011eda59.ngrok-free.app",
       "62d1052a4475.ngrok-free.app",
       ".ngrok-free.app"
     ],
+    proxy: {
+      "/api": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

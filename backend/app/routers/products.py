@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.auth import get_current_user
 from app.services.mercado_livre import mercado_livre_service
-from app.models import MercadoLivreAnnouncement, CatalogCompetitor
+from app.models import MercadoLivreAnnouncement, CatalogCompetitor, User
 from typing import Optional, List, Dict, Any
 import logging
 import httpx
@@ -150,6 +150,92 @@ async def get_products(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro interno ao buscar produtos"
+        )
+
+@router.get("/announcements/{announcement_id}")
+async def get_announcement(
+    announcement_id: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Obtém detalhes de um anúncio específico do banco local."""
+    try:
+        from app.models import MercadoLivreAnnouncement
+        
+        # Buscar anúncio no banco local
+        announcement = db.query(MercadoLivreAnnouncement).filter(
+            MercadoLivreAnnouncement.ml_item_id == announcement_id,
+            MercadoLivreAnnouncement.company_id == current_user.company_id
+        ).first()
+        
+        if not announcement:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Anúncio não encontrado"
+            )
+        
+        # Converter para formato compatível com o frontend
+        product_data = {
+            "id": announcement.ml_item_id,
+            "title": announcement.title,
+            "price": float(announcement.price),
+            "original_price": float(announcement.original_price) if announcement.original_price else None,
+            "base_price": float(announcement.base_price) if announcement.base_price else None,
+            "sale_price": float(announcement.sale_price) if announcement.sale_price else None,
+            "currency_id": announcement.currency_id,
+            "available_quantity": announcement.available_quantity,
+            "sold_quantity": announcement.sold_quantity,
+            "condition": announcement.condition,
+            "status": announcement.status,
+            "permalink": announcement.permalink,
+            "thumbnail": announcement.thumbnail,
+            "listing_type_id": announcement.listing_type_id,
+            "listing_type_name": announcement.listing_type_name,
+            "listing_exposure": announcement.listing_exposure,
+            "category_id": announcement.category_id,
+            "domain_id": announcement.domain_id,
+            "listing_fee_amount": float(announcement.listing_fee_amount) if announcement.listing_fee_amount else None,
+            "sale_fee_amount": float(announcement.sale_fee_amount) if announcement.sale_fee_amount else None,
+            "sale_fee_percentage": float(announcement.sale_fee_percentage) if announcement.sale_fee_percentage else None,
+            "sale_fee_fixed": float(announcement.sale_fee_fixed) if announcement.sale_fee_fixed else None,
+            "total_cost": float(announcement.total_cost) if announcement.total_cost else None,
+            "requires_picture": announcement.requires_picture,
+            "product_cost": float(announcement.product_cost) if announcement.product_cost else None,
+            "taxes": announcement.taxes,
+            "ads_cost": announcement.ads_cost,
+            "shipping_cost": float(announcement.shipping_cost) if announcement.shipping_cost else None,
+            "additional_fees": announcement.additional_fees,
+            "additional_notes": announcement.additional_notes,
+            "catalog_listing": announcement.catalog_listing,
+            "catalog_product_id": announcement.catalog_product_id,
+            "family_name": announcement.family_name,
+            "family_id": announcement.family_id,
+            "user_product_id": announcement.user_product_id,
+            "inventory_id": announcement.inventory_id,
+            "catalog_status": announcement.catalog_status,
+            "catalog_visit_share": announcement.catalog_visit_share,
+            "catalog_competitors_sharing": announcement.catalog_competitors_sharing,
+            "catalog_price_to_win": float(announcement.catalog_price_to_win) if announcement.catalog_price_to_win else None,
+            "full_data": announcement.full_data,
+            "sale_price_info": announcement.sale_price_info,
+            "prices_info": announcement.prices_info,
+            "catalog_position_info": announcement.catalog_position_info,
+            "attributes": announcement.attributes,
+            "pictures": announcement.pictures,
+            "tags": announcement.tags,
+            "ml_date_created": announcement.ml_date_created.isoformat() if announcement.ml_date_created else None,
+            "ml_last_updated": announcement.ml_last_updated.isoformat() if announcement.ml_last_updated else None,
+        }
+        
+        return product_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar anúncio {announcement_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao buscar anúncio"
         )
 
 @router.get("/products/{product_id}")
@@ -515,6 +601,15 @@ async def get_announcements(
                 "total_cost": float(announcement.total_cost) if announcement.total_cost else None,
                 "requires_picture": announcement.requires_picture,
                 "free_relist": announcement.free_relist,
+                
+                # Campos de informações adicionais de custos
+                "product_cost": float(announcement.product_cost) if announcement.product_cost else None,
+                "taxes": announcement.taxes,
+                "ads_cost": announcement.ads_cost,
+                "shipping_cost": float(announcement.shipping_cost) if announcement.shipping_cost else None,
+                "additional_fees": announcement.additional_fees,
+                "additional_notes": announcement.additional_notes,
+                
                 "catalog_listing": announcement.catalog_listing,
                 "catalog_product_id": announcement.catalog_product_id,
                 "family_name": announcement.family_name,
@@ -1223,3 +1318,47 @@ async def update_manual_url(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro interno ao atualizar URL manual"
         )
+
+@router.put("/announcements/{item_id}/additional-info")
+async def update_announcement_additional_info(
+    item_id: str,
+    additional_info: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Atualizar informações adicionais de um anúncio"""
+    try:
+        # Buscar o anúncio
+        announcement = db.query(MercadoLivreAnnouncement).filter(
+            MercadoLivreAnnouncement.ml_item_id == item_id,
+            MercadoLivreAnnouncement.company_id == current_user.company_id
+        ).first()
+        
+        if not announcement:
+            raise HTTPException(status_code=404, detail="Anúncio não encontrado")
+        
+        # Atualizar os campos
+        if "product_cost" in additional_info:
+            announcement.product_cost = additional_info["product_cost"]
+        if "taxes" in additional_info:
+            announcement.taxes = additional_info["taxes"]
+        if "ads_cost" in additional_info:
+            announcement.ads_cost = additional_info["ads_cost"]
+        if "shipping_cost" in additional_info:
+            announcement.shipping_cost = additional_info["shipping_cost"]
+        if "additional_fees" in additional_info:
+            announcement.additional_fees = additional_info["additional_fees"]
+        if "additional_notes" in additional_info:
+            announcement.additional_notes = additional_info["additional_notes"]
+        
+        # Salvar no banco
+        db.commit()
+        db.refresh(announcement)
+        
+        return {"message": "Informações adicionais atualizadas com sucesso"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao atualizar informações adicionais: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar informações adicionais: {str(e)}")

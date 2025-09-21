@@ -112,7 +112,6 @@ export const ProductsPage = () => {
   const [selectedProduct, setSelectedProduct] = useState<MercadoLivreProduct | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showCatalogAnalysisModal, setShowCatalogAnalysisModal] = useState(false);
   const [catalogCompetitors, setCatalogCompetitors] = useState<any[]>([]);
   const [loadingCompetitors, setLoadingCompetitors] = useState(false);
@@ -1333,10 +1332,9 @@ export const ProductsPage = () => {
                                       size="sm"
                                       variant="outline"
                                       onClick={() => {
-                                        setSelectedProduct(product);
-                                        setShowDetailsModal(true);
+                                        window.open(`/products/${product.id}`, '_blank');
                                       }}
-                                      title="Ver detalhes do anúncio"
+                                      title="Ver detalhes do anúncio em nova aba"
                                     >
                                       <Eye className="h-3 w-3" />
                                     </Button>
@@ -1736,8 +1734,8 @@ export const ProductsPage = () => {
         </div>
       )}
 
-      {/* Product Details Modal */}
-      {showDetailsModal && selectedProduct && (
+      {/* Product Details Modal - Removed, now opens in new tab */}
+      {false && selectedProduct && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <CardHeader>
@@ -1751,10 +1749,11 @@ export const ProductsPage = () => {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="basicas" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="basicas">Básicas</TabsTrigger>
                   <TabsTrigger value="tecnicas">Técnicas</TabsTrigger>
                   <TabsTrigger value="atributos">Atributos</TabsTrigger>
+                  <TabsTrigger value="adicionais">Informações Adicionais</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="basicas" className="space-y-6 mt-6">
@@ -1970,6 +1969,7 @@ export const ProductsPage = () => {
                             </div>
                           )}
                           
+                          
                           <div className="border-t border-green-200 pt-2">
                             <div className="flex justify-between items-center">
                               <span className="text-sm font-semibold text-gray-700">Custo Total:</span>
@@ -1980,14 +1980,14 @@ export const ProductsPage = () => {
                           </div>
                           
                           {/* Informações Adicionais */}
-                          {selectedProduct.free_relist && (
-                            <div className="mt-3 pt-2 border-t border-green-200">
+                          <div className="mt-3 pt-2 border-t border-green-200 space-y-1">
+                            {selectedProduct.free_relist && (
                               <div className="flex justify-between items-center text-xs text-green-600">
                                 <span>Relistagem Grátis:</span>
                                 <span>Sim</span>
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
                       
@@ -2068,6 +2068,7 @@ export const ProductsPage = () => {
                                     );
                                   })}
                                 </div>
+                                
                               </div>
                             );
                           })()}
@@ -2138,12 +2139,173 @@ export const ProductsPage = () => {
                   )}
                 </TabsContent>
                 
+                <TabsContent value="adicionais" className="space-y-4 mt-6">
+                  <h3 className="text-lg font-semibold">Informações Adicionais</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Coluna Esquerda */}
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Custo do Produto</Label>
+                        <div className="mt-1">
+                          <Input 
+                            type="number" 
+                            placeholder="R$ 0,00" 
+                            className="w-full"
+                            step="0.01"
+                            value={selectedProduct.product_cost || ''}
+                            onChange={(e) => setSelectedProduct({
+                              ...selectedProduct,
+                              product_cost: parseFloat(e.target.value) || null
+                            })}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Impostos</Label>
+                        <div className="mt-1">
+                          <Input 
+                            type="text" 
+                            placeholder="Ex: ICMS, PIS, COFINS..." 
+                            className="w-full"
+                            value={selectedProduct.taxes || ''}
+                            onChange={(e) => setSelectedProduct({
+                              ...selectedProduct,
+                              taxes: e.target.value
+                            })}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Anúncios ADS</Label>
+                        <div className="mt-1">
+                          <Input 
+                            type="text" 
+                            placeholder="Ex: Google Ads, Facebook Ads..." 
+                            className="w-full"
+                            value={selectedProduct.ads_cost || ''}
+                            onChange={(e) => setSelectedProduct({
+                              ...selectedProduct,
+                              ads_cost: e.target.value
+                            })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Coluna Direita */}
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Valor do Frete</Label>
+                        <div className="mt-1">
+                          <Input 
+                            type="number" 
+                            placeholder="R$ 0,00" 
+                            className="w-full"
+                            step="0.01"
+                            value={selectedProduct.shipping_cost || ''}
+                            onChange={(e) => setSelectedProduct({
+                              ...selectedProduct,
+                              shipping_cost: parseFloat(e.target.value) || null
+                            })}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Taxas Adicionais</Label>
+                        <div className="mt-1">
+                          <Input 
+                            type="text" 
+                            placeholder="Ex: Taxa de processamento, Taxa de segurança..." 
+                            className="w-full"
+                            value={selectedProduct.additional_fees || ''}
+                            onChange={(e) => setSelectedProduct({
+                              ...selectedProduct,
+                              additional_fees: e.target.value
+                            })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Seção de Observações */}
+                  <div className="mt-6">
+                    <Label className="text-sm font-medium text-gray-500">Observações</Label>
+                    <div className="mt-1">
+                      <textarea 
+                        className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        placeholder="Adicione observações sobre custos adicionais, impostos específicos, ou outras informações relevantes..."
+                        value={selectedProduct.additional_notes || ''}
+                        onChange={(e) => setSelectedProduct({
+                          ...selectedProduct,
+                          additional_notes: e.target.value
+                        })}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Botões de Ação */}
+                  <div className="flex justify-end gap-2 mt-6">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setSelectedProduct({
+                          ...selectedProduct,
+                          product_cost: null,
+                          taxes: '',
+                          ads_cost: '',
+                          shipping_cost: null,
+                          additional_fees: '',
+                          additional_notes: ''
+                        });
+                      }}
+                    >
+                      Limpar
+                    </Button>
+                    <Button 
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch(`/api/mercado-livre/announcements/${selectedProduct.id}/additional-info`, {
+                            method: 'PUT',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            },
+                            body: JSON.stringify({
+                              product_cost: selectedProduct.product_cost,
+                              taxes: selectedProduct.taxes,
+                              ads_cost: selectedProduct.ads_cost,
+                              shipping_cost: selectedProduct.shipping_cost,
+                              additional_fees: selectedProduct.additional_fees,
+                              additional_notes: selectedProduct.additional_notes
+                            })
+                          });
+                          
+                          if (response.ok) {
+                            alert('Informações salvas com sucesso!');
+                          } else {
+                            alert('Erro ao salvar informações');
+                          }
+                        } catch (error) {
+                          console.error('Erro ao salvar:', error);
+                          alert('Erro ao salvar informações');
+                        }
+                      }}
+                    >
+                      Salvar
+                    </Button>
+                  </div>
+                </TabsContent>
                 
               </Tabs>
             </CardContent>
             <div className="flex justify-end p-6 pt-0">
               <Button variant="outline" onClick={() => {
-                setShowDetailsModal(false);
                 setSelectedProduct(null);
               }}>
                 Fechar
