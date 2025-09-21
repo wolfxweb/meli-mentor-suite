@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { apiService, User, LoginRequest, RegisterRequest } from "@/services/api";
+import { mercadoLivreApi } from "@/services/mercadoLivreApi";
 
 interface AuthContextType {
   user: User | null;
@@ -41,9 +42,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const userData = await apiService.getCurrentUser();
           setUser(userData);
+          
+          // Sincronizar token no mercadoLivreApi
+          const token = localStorage.getItem('auth_token');
+          if (token) {
+            mercadoLivreApi.updateToken(token);
+          }
         } catch (error) {
           console.error('Failed to fetch user data:', error);
           apiService.logout();
+          mercadoLivreApi.updateToken(null);
         }
       }
       setLoading(false);
@@ -54,9 +62,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      await apiService.login({ email, password });
+      const response = await apiService.login({ email, password });
       const userData = await apiService.getCurrentUser();
       setUser(userData);
+      
+      // Atualizar token no mercadoLivreApi também
+      mercadoLivreApi.updateToken(response.access_token);
+      
       return true;
     } catch (error) {
       console.error('Login failed:', error);
@@ -85,6 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUser(null);
     apiService.logout();
+    mercadoLivreApi.updateToken(null);
   };
 
   const updateUser = async (userData: Partial<User>): Promise<void> => {

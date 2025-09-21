@@ -27,7 +27,10 @@ import {
   Eye,
   Heart,
   Share2,
-  HelpCircle
+  HelpCircle,
+  Search,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { mercadoLivreApi } from '@/services/mercadoLivreApi';
 
@@ -91,6 +94,8 @@ const ProductDetailsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showEditCostsModal, setShowEditCostsModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [catalogCompetitors, setCatalogCompetitors] = useState<any[]>([]);
+  const [loadingCompetitors, setLoadingCompetitors] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -189,6 +194,60 @@ const ProductDetailsPage: React.FC = () => {
     }
   };
 
+  // Funções para análise do catálogo
+  const loadCatalogCompetitors = async (catalogProductId: string) => {
+    setLoadingCompetitors(true);
+    try {
+      console.log('=== INICIANDO CARREGAMENTO DE CONCORRENTES ===');
+      console.log('Fazendo requisição para:', `http://localhost:8000/api/mercado-livre/catalog-competitors/${catalogProductId}`);
+      
+      const competitors = await mercadoLivreApi.getCatalogCompetitors(catalogProductId);
+      console.log('Concorrentes carregados:', competitors);
+      setCatalogCompetitors(competitors);
+    } catch (error: any) {
+      console.error('=== ERRO AO CARREGAR CONCORRENTES ===');
+      console.error('Status:', error.response?.status);
+      console.error('Erro:', error.message);
+      setCatalogCompetitors([]);
+    } finally {
+      setLoadingCompetitors(false);
+    }
+  };
+
+  const syncCatalogCompetitors = async (catalogProductId: string) => {
+    setLoadingCompetitors(true);
+    try {
+      await mercadoLivreApi.syncCatalogCompetitors(catalogProductId);
+      await loadCatalogCompetitors(catalogProductId);
+    } catch (error: any) {
+      console.error('Erro ao sincronizar concorrentes:', error);
+    } finally {
+      setLoadingCompetitors(false);
+    }
+  };
+
+  // Função para determinar posição no catálogo
+  const getCatalogPosition = (product: MercadoLivreProduct) => {
+    if (!product.catalog_status) {
+      return { status: 'not_listed', description: 'Não listado no catálogo' };
+    }
+    
+    if (product.catalog_status === 'winning') {
+      return { status: 'winning', description: 'Ganhando no catálogo' };
+    }
+    
+    if (product.catalog_competitors_sharing && product.catalog_competitors_sharing > 0) {
+      return { status: 'sharing_first_place', description: 'Compartilhando o primeiro lugar' };
+    }
+    
+    return { status: 'competing', description: 'Competindo no catálogo' };
+  };
+
+  // Função para verificar se tem vendas completas
+  const hasFullSales = (product: MercadoLivreProduct) => {
+    return product.tags && product.tags.includes('fulfillment');
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -261,10 +320,11 @@ const ProductDetailsPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="basicas" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="basicas">Básicas</TabsTrigger>
               <TabsTrigger value="tecnicas">Técnicas</TabsTrigger>
               <TabsTrigger value="atributos">Atributos</TabsTrigger>
+              <TabsTrigger value="catalogo">Catálogo</TabsTrigger>
             </TabsList>
             
             <TabsContent value="basicas" className="space-y-6 mt-6">
@@ -665,8 +725,8 @@ const ProductDetailsPage: React.FC = () => {
                   </div>
                   
                   {/* Gráfico de Pizza - Distribuição de Custos */}
-                  <div className="col-span-12 lg:col-span-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                    <h4 className="text-sm font-semibold text-blue-900 mb-3">📊 Distribuição de Custos</h4>
+                  <div className="col-span-12 lg:col-span-6 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                    <h4 className="text-sm font-semibold text-blue-900 mb-2">📊 Distribuição de Custos</h4>
                     <div className="h-64">
                       {(() => {
                         const price = Number(product.price) || 0;
@@ -693,16 +753,10 @@ const ProductDetailsPage: React.FC = () => {
                         );
                         
                         return (
-                          <div className="space-y-2">
-                            <div className="text-center">
-                              <p className="text-lg font-bold text-gray-800">
-                                R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </p>
-                              <p className="text-xs text-gray-600">Preço de Venda</p>
-                            </div>
-                            
-                            <div className="flex justify-center">
-                              <div className="w-40 h-40 relative">
+                          <div className="flex flex-col h-full">
+                            {/* Gráfico dinâmico */}
+                            <div className="flex-1 flex items-center justify-center">
+                              <div className="relative" style={{ width: 'calc(95% - 2rem)', height: 'calc(95% - 2rem)', maxWidth: '266px', maxHeight: '266px' }}>
                                 <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
                                   {data.map((item, index) => {
                                     const percentage = (item.value / price) * 100;
@@ -718,7 +772,7 @@ const ProductDetailsPage: React.FC = () => {
                                         r="40"
                                         fill="none"
                                         stroke={item.color}
-                                        strokeWidth="8"
+                                        strokeWidth="10"
                                         strokeDasharray={strokeDasharray}
                                         strokeDashoffset={strokeDashoffset}
                                         className="transition-all duration-300"
@@ -726,10 +780,21 @@ const ProductDetailsPage: React.FC = () => {
                                     );
                                   })}
                                 </svg>
+                                
+                                {/* Preço no centro */}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="text-center">
+                                    <p className="text-sm font-bold text-gray-800">
+                                      R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </p>
+                                    <p className="text-xs text-gray-600">Preço</p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                             
-                            <div className="space-y-1">
+                            {/* Legenda compacta */}
+                            <div className="space-y-1 mt-2">
                               {data.map((item) => {
                                 const percentage = ((item.value / price) * 100).toFixed(1);
                                 return (
@@ -840,6 +905,484 @@ const ProductDetailsPage: React.FC = () => {
                   <p className="text-gray-600">Nenhum atributo disponível para este produto</p>
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="catalogo" className="space-y-6 mt-6">
+              <div className="space-y-6">
+                {/* Informações Básicas do Produto */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">📦 Informações do Produto</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Título</Label>
+                        <p className="text-sm font-medium">{product.title}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">ID do Anúncio</Label>
+                        <p className="text-sm font-mono">{product.id}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">ID do Produto de Catálogo</Label>
+                        <p className="text-sm font-mono">{product.catalog_product_id || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Família do Produto</Label>
+                        <p className="text-sm">{product.family_name || 'N/A'}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">💰 Análise de Preços</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Seu Anúncio */}
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <h4 className="font-semibold text-blue-800 mb-3">📊 Seu Anúncio</h4>
+                        <div className="space-y-2">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Preço Atual</Label>
+                            <p className="text-lg font-bold text-green-600">
+                              R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                          {product.original_price && product.original_price !== product.price && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-500">Preço Original</Label>
+                              <p className="text-sm text-gray-500 line-through">
+                                R$ {product.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Preço para vencer */}
+                      {product.catalog_price_to_win && (
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                          <h4 className="font-semibold text-purple-800 mb-2">🎯 Preço para Vencer</h4>
+                          <p className="text-lg font-bold text-purple-600">
+                            R$ {product.catalog_price_to_win.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="text-sm text-purple-600 mt-1">
+                            Preço sugerido pelo Mercado Livre para vencer a competição
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Análise de Concorrentes no Catálogo */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center justify-between">
+                      <span>🏪 Análise de Concorrentes no Catálogo</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (product.catalog_product_id) {
+                            syncCatalogCompetitors(product.catalog_product_id);
+                          }
+                        }}
+                        disabled={loadingCompetitors}
+                      >
+                        {loadingCompetitors ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            Atualizando...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Atualizar
+                          </>
+                        )}
+                      </Button>
+                    </CardTitle>
+                    <CardDescription>
+                      Análise detalhada da competição e posicionamento no catálogo
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {/* Status e Posicionamento */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
+                          <h4 className="font-semibold text-blue-800 mb-3">🎯 Seu Status no Catálogo</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">Status:</span>
+                              <Badge className={
+                                getCatalogPosition(product).status === 'winning' ? 'bg-green-100 text-green-800' :
+                                getCatalogPosition(product).status === 'sharing_first_place' ? 'bg-blue-100 text-blue-800' :
+                                getCatalogPosition(product).status === 'competing' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }>
+                                {getCatalogPosition(product).status === 'winning' ? '🥇 Ganhando' :
+                                 getCatalogPosition(product).status === 'sharing_first_place' ? '🥈 Compartilhando 1º' :
+                                 getCatalogPosition(product).status === 'competing' ? '🥉 Competindo' : '📋 Listado'}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">Visibilidade:</span>
+                              <Badge className={
+                                product.catalog_visit_share === 'maximum' ? 'bg-green-100 text-green-800' :
+                                product.catalog_visit_share === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                product.catalog_visit_share === 'minimum' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }>
+                                {product.catalog_visit_share === 'maximum' ? '👁️ Máxima' :
+                                 product.catalog_visit_share === 'medium' ? '👁️ Média' :
+                                 product.catalog_visit_share === 'minimum' ? '👁️ Mínima' : '👁️ N/A'}
+                              </Badge>
+                            </div>
+                            {product.catalog_price_to_win && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm">Preço para Vencer:</span>
+                                <span className="font-bold text-blue-600">
+                                  R$ {product.catalog_price_to_win.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg">
+                          <h4 className="font-semibold text-purple-800 mb-3">📊 Estatísticas de Competição</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">Total de Concorrentes:</span>
+                              <span className="font-bold text-purple-600">
+                                {catalogCompetitors.length} vendedores
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">Compartilhando 1º Lugar:</span>
+                              <span className="font-bold text-red-600">
+                                {product.catalog_competitors_sharing === 0 && getCatalogPosition(product).status === 'winning' ? (
+                                  <span className="text-green-600">Você está ganhando!</span>
+                                ) : product.catalog_competitors_sharing === 1 ? (
+                                  <span>
+                                    {catalogCompetitors.find(c => c.price === Math.min(...catalogCompetitors.map(comp => comp.price || 0)))?.seller?.nickname || 'Vendedor'}
+                                  </span>
+                                ) : (
+                                  `${product.catalog_competitors_sharing || 0} vendedores`
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">Sua Posição:</span>
+                              <span className="font-bold text-orange-600">
+                                {catalogCompetitors.length > 0 ? 
+                                  `${catalogCompetitors.filter(c => (c.price || 0) < product.price).length + 1}º` : 
+                                  '1º'
+                                }
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Análise de Preços dos Concorrentes */}
+                      {catalogCompetitors.length > 0 && (
+                        <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
+                          <h4 className="font-semibold text-green-800 mb-3">💰 Análise de Preços dos Concorrentes</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-red-600">
+                                R$ {Math.min(...catalogCompetitors.map(c => c.price || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </div>
+                              <div className="text-xs text-gray-600">Menor Preço</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-green-600">
+                                R$ {Math.max(...catalogCompetitors.map(c => c.price || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </div>
+                              <div className="text-xs text-gray-600">Maior Preço</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-yellow-600">
+                                R$ {(catalogCompetitors.reduce((sum, c) => sum + (c.price || 0), 0) / catalogCompetitors.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </div>
+                              <div className="text-xs text-gray-600">Preço Médio</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-blue-600">
+                                R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </div>
+                              <div className="text-xs text-gray-600">Preço do Anúncio</div>
+                              {product.original_price && product.original_price !== product.price && (
+                                <div className="text-sm text-gray-500 line-through mt-1">
+                                  R$ {product.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Análise de Medalhas dos Vendedores */}
+                      {catalogCompetitors.length > 0 && (
+                        <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 p-4 rounded-lg">
+                          <h4 className="font-semibold text-yellow-800 mb-3">🏆 Análise de Medalhas dos Vendedores</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-yellow-600">
+                                {catalogCompetitors.filter(c => c.seller?.power_seller_status === 'gold').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Gold</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-gray-400">
+                                {catalogCompetitors.filter(c => c.seller?.power_seller_status === 'silver').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Silver</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-orange-600">
+                                {catalogCompetitors.filter(c => c.seller?.power_seller_status === 'bronze').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Bronze</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-gray-600">
+                                {catalogCompetitors.filter(c => !c.seller?.power_seller_status).length}
+                              </div>
+                              <div className="text-xs text-gray-600">Sem Medalha</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Análise de Envio dos Concorrentes */}
+                      {catalogCompetitors.length > 0 && (
+                        <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
+                          <h4 className="font-semibold text-blue-800 mb-3">📦 Análise de Envio dos Concorrentes</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-green-600">
+                                {catalogCompetitors.filter(c => c.shipping?.free_shipping === true).length}
+                              </div>
+                              <div className="text-xs text-gray-600">Frete Grátis</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-blue-600">
+                                {catalogCompetitors.filter(c => c.shipping?.mode === 'me2').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Mercado Envios 2</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-purple-600">
+                                {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'fulfillment').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Mercado Envios Full</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-orange-600">
+                                {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'drop_off').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Correio Flex</div>
+                            </div>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-red-600">
+                                {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'xd_drop_off').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Coletas e Places</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-indigo-600">
+                                {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'self_service').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Mercado Envios Flex</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-yellow-600">
+                                {catalogCompetitors.filter(c => c.shipping?.logistic_type === 'cross_docking').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Cross Docking</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-lg font-bold text-gray-600">
+                                {catalogCompetitors.filter(c => c.shipping?.mode === 'not_specified' || c.shipping?.mode === 'custom').length}
+                              </div>
+                              <div className="text-xs text-gray-600">Outros/Personalizado</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Lista de Concorrentes */}
+                      <div className="bg-white border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-semibold text-gray-800">🏪 Lista de Concorrentes no Catálogo</h4>
+                          <Button
+                            onClick={() => {
+                              if (product.catalog_product_id) {
+                                loadCatalogCompetitors(product.catalog_product_id);
+                              }
+                            }}
+                            disabled={loadingCompetitors}
+                            size="sm"
+                            variant="outline"
+                          >
+                            {loadingCompetitors ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        
+                        {loadingCompetitors ? (
+                          <div className="flex justify-center py-8">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                            <span className="ml-2">Carregando concorrentes...</span>
+                          </div>
+                        ) : catalogCompetitors.length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b bg-gray-50">
+                                  <th className="text-left p-3 font-medium text-gray-700">Preço</th>
+                                  <th className="text-left p-3 font-medium text-gray-700">Vendedor</th>
+                                  <th className="text-left p-3 font-medium text-gray-700">Reputação</th>
+                                  <th className="text-left p-3 font-medium text-gray-700">Vendas</th>
+                                  <th className="text-left p-3 font-medium text-gray-700">Frete</th>
+                                  <th className="text-left p-3 font-medium text-gray-700">URL</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {catalogCompetitors.map((competitor, index) => (
+                                  <tr key={competitor.item_id || index} className="border-b hover:bg-gray-50">
+                                    {/* Preço */}
+                                    <td className="p-3">
+                                      <div className="font-bold text-green-600">
+                                        R$ {competitor.price?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || 'N/A'}
+                                      </div>
+                                      {competitor.original_price && competitor.original_price !== competitor.price && (
+                                        <div className="text-xs text-gray-500 line-through">
+                                          R$ {competitor.original_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </div>
+                                      )}
+                                    </td>
+                                    
+                                    {/* Vendedor */}
+                                    <td className="p-3">
+                                      <div className="font-medium text-gray-800">
+                                        {competitor.seller?.nickname || 'Vendedor'}
+                                      </div>
+                                      {competitor.seller?.power_seller_status && (
+                                        <div className="text-xs text-blue-600">
+                                          {competitor.seller.power_seller_status}
+                                        </div>
+                                      )}
+                                    </td>
+                                    
+                                    {/* Reputação */}
+                                    <td className="p-3">
+                                      <div className="flex items-center space-x-2">
+                                        <div className={`w-3 h-3 rounded-full ${
+                                          competitor.seller?.reputation_level_id === '5_green' ? 'bg-green-500' :
+                                          competitor.seller?.reputation_level_id === '4_green' ? 'bg-green-400' :
+                                          competitor.seller?.reputation_level_id === '3_yellow' ? 'bg-yellow-400' :
+                                          competitor.seller?.reputation_level_id === '2_yellow' ? 'bg-yellow-500' :
+                                          competitor.seller?.reputation_level_id === '1_red' ? 'bg-red-500' :
+                                          'bg-gray-400'
+                                        }`}></div>
+                                        <span className="text-sm font-medium text-gray-700">
+                                          {competitor.seller?.reputation_level_id?.split('_')[0] || '0'}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    
+                                    {/* Vendas */}
+                                    <td className="p-3">
+                                      {competitor.sold_quantity ? (
+                                        <div className="text-xs text-green-600 font-medium">
+                                          +{competitor.sold_quantity} vendas
+                                        </div>
+                                      ) : (
+                                        <div className="text-xs text-gray-500">
+                                          Sem vendas
+                                        </div>
+                                      )}
+                                      {competitor.seller?.transactions?.total > 0 && (
+                                        <div className="text-xs text-gray-500">
+                                          {competitor.seller.transactions.total.toLocaleString('pt-BR')} transações
+                                        </div>
+                                      )}
+                                    </td>
+                                    
+                                    {/* Frete */}
+                                    <td className="p-3">
+                                      <div className="text-xs">
+                                        {competitor.shipping?.free_shipping ? '🚚 Frete Grátis' : '💰 Frete Pago'}
+                                      </div>
+                                    </td>
+                                    
+                                    {/* URL */}
+                                    <td className="p-3">
+                                      {(competitor.manual_url || competitor.url) && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="text-xs p-1 h-auto"
+                                          onClick={() => {
+                                            const urlToOpen = competitor.manual_url || competitor.url;
+                                            window.open(urlToOpen, '_blank');
+                                          }}
+                                        >
+                                          🔗 Abrir
+                                        </Button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                            <p>Nenhum concorrente encontrado</p>
+                            <p className="text-sm">Clique em "Atualizar" para buscar concorrentes</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Link para Ver no Mercado Livre */}
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-blue-800">🔍 Ver Página do Produto no Mercado Livre</h4>
+                            <p className="text-sm text-blue-600 mt-1">
+                              Acesse a página oficial do produto para ver todos os concorrentes
+                            </p>
+                          </div>
+                          <Button
+                            onClick={() => {
+                              const productUrl = `https://www.mercadolivre.com.br/p/${product.catalog_product_id}`;
+                              window.open(productUrl, '_blank');
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Ver no ML
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
           </Tabs>

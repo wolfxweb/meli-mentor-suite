@@ -1012,8 +1012,9 @@ async def get_catalog_competitors(
         valid_token = mercado_livre_service.get_valid_token(db, current_user.company_id)
         
         if not valid_token:
+            logger.warning(f"Token inválido ou expirado para empresa {current_user.company_id}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token inválido ou expirado. Reconecte sua conta do Mercado Livre."
             )
         
@@ -1095,6 +1096,11 @@ async def get_catalog_competitors(
         logger.error(f"Erro HTTP ao buscar concorrentes: {e}")
         if e.response.status_code == 404:
             return []
+        elif e.response.status_code == 401:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token expirado. Reconecte sua conta do Mercado Livre."
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Erro ao buscar concorrentes no Mercado Livre"

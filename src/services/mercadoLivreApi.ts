@@ -198,6 +198,18 @@ class MercadoLivreApiService {
       body: JSON.stringify(costsData),
     });
   }
+
+  // Método para buscar concorrentes do catálogo
+  async getCatalogCompetitors(catalogProductId: string): Promise<any[]> {
+    return this.request(`/api/mercado-livre/catalog-competitors/${catalogProductId}`);
+  }
+
+  // Método para sincronizar concorrentes do catálogo
+  async syncCatalogCompetitors(catalogProductId: string): Promise<any> {
+    return this.request(`/api/mercado-livre/catalog-competitors/${catalogProductId}/sync`, {
+      method: 'POST',
+    });
+  }
 }
 
 export const mercadoLivreApi = new MercadoLivreApiService(API_BASE_URL);
