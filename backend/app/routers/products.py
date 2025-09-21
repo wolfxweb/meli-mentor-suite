@@ -238,6 +238,61 @@ async def get_announcement(
             detail="Erro interno ao buscar anúncio"
         )
 
+@router.put("/announcements/{announcement_id}/costs")
+async def update_announcement_costs(
+    announcement_id: str,
+    costs_data: Dict[str, Any],
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Atualiza os custos adicionais de um anúncio."""
+    try:
+        from app.models import MercadoLivreAnnouncement
+        
+        # Buscar anúncio no banco local
+        announcement = db.query(MercadoLivreAnnouncement).filter(
+            MercadoLivreAnnouncement.ml_item_id == announcement_id,
+            MercadoLivreAnnouncement.company_id == current_user.company_id
+        ).first()
+        
+        if not announcement:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Anúncio não encontrado"
+            )
+        
+        # Atualizar os campos de custos
+        if "product_cost" in costs_data:
+            announcement.product_cost = costs_data["product_cost"]
+        if "shipping_cost" in costs_data:
+            announcement.shipping_cost = costs_data["shipping_cost"]
+        if "taxes" in costs_data:
+            announcement.taxes = costs_data["taxes"]
+        if "ads_cost" in costs_data:
+            announcement.ads_cost = costs_data["ads_cost"]
+        if "additional_fees" in costs_data:
+            announcement.additional_fees = costs_data["additional_fees"]
+        if "additional_notes" in costs_data:
+            announcement.additional_notes = costs_data["additional_notes"]
+        
+        # Salvar as alterações
+        db.commit()
+        db.refresh(announcement)
+        
+        return {
+            "message": "Custos atualizados com sucesso",
+            "announcement_id": announcement_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao atualizar custos do anúncio {announcement_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao atualizar custos"
+        )
+
 @router.get("/products/{product_id}")
 async def get_product(
     product_id: str,

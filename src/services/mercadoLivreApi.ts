@@ -190,6 +190,14 @@ class MercadoLivreApiService {
   async getProduct(productId: string): Promise<any> {
     return this.request(`/api/mercado-livre/announcements/${productId}`);
   }
+
+  // Método para atualizar custos de um produto
+  async updateProductCosts(productId: string, costsData: any): Promise<any> {
+    return this.request(`/api/mercado-livre/announcements/${productId}/costs`, {
+      method: 'PUT',
+      body: JSON.stringify(costsData),
+    });
+  }
 }
 
 export const mercadoLivreApi = new MercadoLivreApiService(API_BASE_URL);

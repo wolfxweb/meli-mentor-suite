@@ -6,6 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Package, 
   ExternalLink, 
@@ -85,6 +88,8 @@ const ProductDetailsPage: React.FC = () => {
   const [product, setProduct] = useState<MercadoLivreProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEditCostsModal, setShowEditCostsModal] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -131,6 +136,55 @@ const ProductDetailsPage: React.FC = () => {
       case 'new': return 'bg-blue-100 text-blue-800';
       case 'used': return 'bg-orange-100 text-orange-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const handleSaveCosts = async () => {
+    if (!product) return;
+    
+    setSaving(true);
+    try {
+      const formData = {
+        product_cost: (() => {
+          const value = parseFloat((document.getElementById('product_cost') as HTMLInputElement)?.value);
+          return (!isNaN(value) && value > 0) ? value : null;
+        })(),
+        shipping_cost: (() => {
+          const value = parseFloat((document.getElementById('shipping_cost') as HTMLInputElement)?.value);
+          return (!isNaN(value) && value > 0) ? value : null;
+        })(),
+        taxes: (() => {
+          const value = parseFloat((document.getElementById('taxes') as HTMLInputElement)?.value);
+          return (!isNaN(value) && value > 0) ? value : null;
+        })(),
+        ads_cost: (() => {
+          const value = parseFloat((document.getElementById('ads_cost') as HTMLInputElement)?.value);
+          return (!isNaN(value) && value > 0) ? value : null;
+        })(),
+        additional_fees: (() => {
+          const value = parseFloat((document.getElementById('additional_fees') as HTMLInputElement)?.value);
+          return (!isNaN(value) && value > 0) ? value : null;
+        })(),
+        additional_notes: (document.getElementById('additional_notes') as HTMLTextAreaElement)?.value || null,
+      };
+
+      // Chamar a API para salvar os custos
+      await mercadoLivreApi.updateProductCosts(product.id, formData);
+      
+      // Recarregar os dados do produto para ter os valores atualizados
+      const updatedProduct = await mercadoLivreApi.getProduct(product.id);
+      setProduct(updatedProduct);
+      
+      setShowEditCostsModal(false);
+      
+      // Aqui você poderia mostrar uma notificação de sucesso
+      console.log('Custos salvos com sucesso!');
+      
+    } catch (error) {
+      console.error('Erro ao salvar custos:', error);
+      // Aqui você poderia mostrar uma notificação de erro
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -413,52 +467,6 @@ const ProductDetailsPage: React.FC = () => {
                     <Label className="text-sm font-medium text-gray-500">Categoria</Label>
                     <p className="text-sm font-mono">{product.category_id || 'N/A'}</p>
                   </div>
-
-                  {product.product_cost && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Custo do Produto</Label>
-                      <p className="text-sm font-medium">
-                        R$ {product.product_cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  )}
-
-                  {product.shipping_cost && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Custo do Frete</Label>
-                      <p className="text-sm font-medium">
-                        R$ {product.shipping_cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  )}
-
-                  {product.taxes && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Impostos</Label>
-                      <p className="text-sm">{product.taxes}</p>
-                    </div>
-                  )}
-
-                  {product.ads_cost && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Custos de Anúncios</Label>
-                      <p className="text-sm">{product.ads_cost}</p>
-                    </div>
-                  )}
-
-                  {product.additional_fees && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Taxas Adicionais</Label>
-                      <p className="text-sm">{product.additional_fees}</p>
-                    </div>
-                  )}
-
-                  {product.additional_notes && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Observações</Label>
-                      <p className="text-sm">{product.additional_notes}</p>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -476,6 +484,15 @@ const ProductDetailsPage: React.FC = () => {
                           {product.listing_type_name || product.listing_type_id || 'N/A'}
                         </span>
                       </div>
+                      
+                      {product.sale_fee_percentage && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Percentual de Comissão:</span>
+                          <span className="text-sm font-medium text-purple-600">
+                            {product.sale_fee_percentage}%
+                          </span>
+                        </div>
+                      )}
                       
                       {product.listing_fee_amount && product.listing_fee_amount > 0 && (
                         <div className="flex justify-between items-center">
@@ -511,12 +528,50 @@ const ProductDetailsPage: React.FC = () => {
                         </div>
                       )}
                       
-                      {product.sale_fee_percentage && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Percentual de Comissão:</span>
-                          <span className="text-sm font-medium text-purple-600">
-                            {product.sale_fee_percentage}%
-                          </span>
+                    {/* Custos Adicionais */}
+                    {((product.product_cost && !isNaN(product.product_cost) && product.product_cost > 0) || (product.shipping_cost && !isNaN(product.shipping_cost) && product.shipping_cost > 0) || (product.taxes && !isNaN(product.taxes) && product.taxes > 0) || (product.ads_cost && !isNaN(product.ads_cost) && product.ads_cost > 0) || (product.additional_fees && !isNaN(product.additional_fees) && product.additional_fees > 0)) && (
+                        <div className="mt-3 pt-2 border-t border-green-200 space-y-1">
+                          <p className="text-xs font-bold text-gray-600 mb-2">Custos Adicionais:</p>
+                          {product.product_cost && !isNaN(product.product_cost) && product.product_cost > 0 && (
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-600">Custo do Produto:</span>
+                              <span className="font-medium text-orange-600">
+                                R$ {product.product_cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          {product.shipping_cost && !isNaN(product.shipping_cost) && product.shipping_cost > 0 && (
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-600">Custo do Frete:</span>
+                              <span className="font-medium text-orange-600">
+                                R$ {product.shipping_cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          {product.taxes && !isNaN(product.taxes) && product.taxes > 0 && (
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-600">Impostos ({product.taxes}%):</span>
+                              <span className="font-medium text-orange-600">
+                                R$ {((product.price * product.taxes) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          {product.ads_cost && !isNaN(product.ads_cost) && product.ads_cost > 0 && (
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-600">Custo Marketing ({product.ads_cost}%):</span>
+                              <span className="font-medium text-orange-600">
+                                R$ {((product.price * product.ads_cost) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          {product.additional_fees && !isNaN(product.additional_fees) && product.additional_fees > 0 && (
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-600">Taxas Adicionais:</span>
+                              <span className="font-medium text-orange-600">
+                                R$ {product.additional_fees.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                       
@@ -524,9 +579,34 @@ const ProductDetailsPage: React.FC = () => {
                         <div className="flex justify-between items-center">
                           <span className="text-sm font-semibold text-gray-700">Custo Total:</span>
                           <span className="text-sm font-bold text-red-600">
-                            R$ {product.total_cost?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                            R$ {(() => {
+                            const baseCost = Number(product.total_cost) || 0;
+                            const productCost = (product.product_cost && !isNaN(product.product_cost)) ? Number(product.product_cost) : 0;
+                            const shippingCost = (product.shipping_cost && !isNaN(product.shipping_cost)) ? Number(product.shipping_cost) : 0;
+                            const taxesPercent = (product.taxes && !isNaN(product.taxes)) ? Number(product.taxes) : 0;
+                            const taxesValue = taxesPercent > 0 ? (Number(product.price) * taxesPercent) / 100 : 0; // Impostos como % do preço
+                            const adsCostPercent = (product.ads_cost && !isNaN(product.ads_cost)) ? Number(product.ads_cost) : 0;
+                            const adsCost = adsCostPercent > 0 ? (Number(product.price) * adsCostPercent) / 100 : 0; // Marketing como % do preço
+                            const additionalFees = (product.additional_fees && !isNaN(product.additional_fees)) ? Number(product.additional_fees) : 0;
+                            const totalAdditionalCosts = productCost + shippingCost + taxesValue + adsCost + additionalFees;
+                            const finalTotal = Number(baseCost) + Number(totalAdditionalCosts);
+                              return finalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            })()}
                           </span>
                         </div>
+                      </div>
+
+                      {/* Botão para editar custos */}
+                      <div className="mt-4 pt-3 border-t border-green-200">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowEditCostsModal(true)}
+                          className="w-full text-green-700 border-green-300 hover:bg-green-50"
+                        >
+                          <DollarSign className="h-4 w-4 mr-2" />
+                          Editar Custos Adicionais
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -536,8 +616,16 @@ const ProductDetailsPage: React.FC = () => {
                     <h4 className="text-sm font-semibold text-blue-900 mb-3">📊 Distribuição de Custos</h4>
                     <div className="h-64">
                       {(() => {
-                        const price = product.price || 0;
-                        const totalCost = product.total_cost || 0;
+                        const price = Number(product.price) || 0;
+                        const baseCost = Number(product.total_cost) || 0;
+                        const productCost = (product.product_cost && !isNaN(product.product_cost)) ? Number(product.product_cost) : 0;
+                        const shippingCost = (product.shipping_cost && !isNaN(product.shipping_cost)) ? Number(product.shipping_cost) : 0;
+                        const taxesPercent = (product.taxes && !isNaN(product.taxes)) ? Number(product.taxes) : 0;
+                        const taxesValue = taxesPercent > 0 ? (price * taxesPercent) / 100 : 0; // Impostos como % do preço
+                        const adsCostPercent = (product.ads_cost && !isNaN(product.ads_cost)) ? Number(product.ads_cost) : 0;
+                        const adsCost = adsCostPercent > 0 ? (price * adsCostPercent) / 100 : 0; // Marketing como % do preço
+                        const additionalFees = (product.additional_fees && !isNaN(product.additional_fees)) ? Number(product.additional_fees) : 0;
+                        const totalCost = Number(baseCost) + Number(productCost) + Number(shippingCost) + Number(taxesValue) + Number(adsCost) + Number(additionalFees);
                         const profit = price - totalCost;
                         
                         const data = [
@@ -555,7 +643,7 @@ const ProductDetailsPage: React.FC = () => {
                           <div className="space-y-2">
                             <div className="text-center">
                               <p className="text-lg font-bold text-gray-800">
-                                R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </p>
                               <p className="text-xs text-gray-600">Preço de Venda</p>
                             </div>
@@ -601,7 +689,7 @@ const ProductDetailsPage: React.FC = () => {
                                       <span className="text-gray-600">{item.name}</span>
                                     </div>
                                     <div className="text-right">
-                                      <span className="font-medium">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="font-medium">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                       <span className="text-gray-500 ml-1">({percentage}%)</span>
                                     </div>
                                   </div>
@@ -704,6 +792,115 @@ const ProductDetailsPage: React.FC = () => {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Modal de Edição de Custos */}
+      <Dialog open={showEditCostsModal} onOpenChange={setShowEditCostsModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Editar Custos Adicionais
+            </DialogTitle>
+            <DialogDescription>
+              Atualize os custos adicionais do produto {product?.title}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-6 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="product_cost">Custo do Produto (R$)</Label>
+                <Input
+                  id="product_cost"
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  defaultValue={product?.product_cost || ''}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="shipping_cost">Custo do Frete (R$)</Label>
+                <Input
+                  id="shipping_cost"
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  defaultValue={product?.shipping_cost || ''}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="taxes">Impostos (%)</Label>
+                <Input
+                  id="taxes"
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  defaultValue={product?.taxes || ''}
+                />
+              </div>
+              
+                <div className="space-y-2">
+                  <Label htmlFor="ads_cost">Custo Marketing (%)</Label>
+                  <Input
+                    id="ads_cost"
+                    type="number"
+                    step="0.01"
+                    placeholder="0,00"
+                    defaultValue={product?.ads_cost || ''}
+                  />
+                </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="additional_fees">Taxas Adicionais (R$)</Label>
+              <Input
+                id="additional_fees"
+                type="number"
+                step="0.01"
+                placeholder="0,00"
+                defaultValue={product?.additional_fees || ''}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="additional_notes">Observações</Label>
+              <Textarea
+                id="additional_notes"
+                placeholder="Observações adicionais sobre os custos..."
+                defaultValue={product?.additional_notes || ''}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowEditCostsModal(false)}
+              disabled={saving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveCosts}
+              disabled={saving}
+            >
+              {saving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Custos'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
