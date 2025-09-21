@@ -26,7 +26,8 @@ import {
   Star,
   Eye,
   Heart,
-  Share2
+  Share2,
+  HelpCircle
 } from 'lucide-react';
 import { mercadoLivreApi } from '@/services/mercadoLivreApi';
 
@@ -594,6 +595,58 @@ const ProductDetailsPage: React.FC = () => {
                             })()}
                           </span>
                         </div>
+                        
+                        {/* Markup */}
+                        {(() => {
+                          const baseCost = Number(product.total_cost) || 0;
+                          const productCost = (product.product_cost && !isNaN(product.product_cost)) ? Number(product.product_cost) : 0;
+                          const shippingCost = (product.shipping_cost && !isNaN(product.shipping_cost)) ? Number(product.shipping_cost) : 0;
+                          const taxesPercent = (product.taxes && !isNaN(product.taxes)) ? Number(product.taxes) : 0;
+                          const taxesValue = taxesPercent > 0 ? (Number(product.price) * taxesPercent) / 100 : 0;
+                          const adsCostPercent = (product.ads_cost && !isNaN(product.ads_cost)) ? Number(product.ads_cost) : 0;
+                          const adsCost = adsCostPercent > 0 ? (Number(product.price) * adsCostPercent) / 100 : 0;
+                          const additionalFees = (product.additional_fees && !isNaN(product.additional_fees)) ? Number(product.additional_fees) : 0;
+                          const totalAdditionalCosts = productCost + shippingCost + taxesValue + adsCost + additionalFees;
+                          const finalTotal = Number(baseCost) + Number(totalAdditionalCosts);
+                          const markup = finalTotal > 0 ? ((Number(product.price) - finalTotal) / finalTotal) * 100 : 0;
+                          
+                          return (
+                            <>
+                              <div className="flex justify-between items-center mt-2">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-sm font-semibold text-gray-700">Markup:</span>
+                                  <div className="group relative">
+                                    <HelpCircle className="h-3 w-3 text-gray-400 cursor-help" />
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                                      Percentual de margem sobre o custo<br/>(não é o lucro líquido)
+                                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className={`text-sm font-bold ${markup >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {markup.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                                </span>
+                              </div>
+                              
+                              {/* Lucro Líquido */}
+                              <div className="flex justify-between items-center mt-1">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-sm font-semibold text-gray-700">Lucro Líquido:</span>
+                                  <div className="group relative">
+                                    <HelpCircle className="h-3 w-3 text-gray-400 cursor-help" />
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                                      Valor absoluto do lucro<br/>(Preço - Custo Total)
+                                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className={`text-sm font-bold ${(Number(product.price) - finalTotal) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  R$ {(Number(product.price) - finalTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
 
                       {/* Botão para editar custos */}
