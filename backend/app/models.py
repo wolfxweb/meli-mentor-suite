@@ -228,3 +228,106 @@ class CatalogCompetitor(Base):
     
     # Relationships
     company = relationship("Company")
+
+# Tabela para armazenar dados de publicidade (Product Ads)
+class ProductAdsData(Base):
+    __tablename__ = "product_ads_data"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    
+    # Informações básicas do anúncio
+    item_id = Column(String(255), nullable=False, index=True)  # ID do item no ML
+    campaign_id = Column(Integer, nullable=True)  # ID da campanha
+    advertiser_id = Column(Integer, nullable=True)  # ID do anunciante
+    
+    # Informações do anúncio
+    title = Column(String(500), nullable=False)
+    price = Column(Numeric(12, 2), nullable=False)
+    status = Column(String(50), nullable=False)  # active, paused, hold, idle, delegated, revoked
+    has_discount = Column(Boolean, default=False)
+    catalog_listing = Column(Boolean, default=False)
+    logistic_type = Column(String(50), nullable=True)
+    listing_type_id = Column(String(100), nullable=True)
+    domain_id = Column(String(100), nullable=True)
+    buy_box_winner = Column(Boolean, default=False)
+    channel = Column(String(50), nullable=True)  # marketplace, mshops
+    official_store_id = Column(Integer, nullable=True)
+    brand_value_id = Column(String(100), nullable=True)
+    brand_value_name = Column(String(255), nullable=True)
+    condition = Column(String(50), nullable=True)
+    current_level = Column(String(50), nullable=True)
+    deferred_stock = Column(Boolean, default=False)
+    picture_id = Column(String(255), nullable=True)
+    thumbnail = Column(Text, nullable=True)
+    permalink = Column(Text, nullable=True)
+    recommended = Column(Boolean, default=False)
+    
+    # Métricas de publicidade
+    clicks = Column(Integer, default=0)
+    prints = Column(Integer, default=0)  # Impressões
+    ctr = Column(Numeric(8, 4), nullable=True)  # Taxa de cliques
+    cost = Column(Numeric(12, 2), default=0)  # Custo total
+    cpc = Column(Numeric(8, 4), nullable=True)  # Custo por clique
+    acos = Column(Numeric(8, 4), nullable=True)  # Advertising Cost of Sales
+    tacos = Column(Numeric(8, 4), nullable=True)  # Total Advertising Cost of Sales
+    
+    # Vendas orgânicas (sem publicidade)
+    organic_units_quantity = Column(Integer, default=0)
+    organic_units_amount = Column(Numeric(12, 2), default=0)
+    organic_items_quantity = Column(Integer, default=0)
+    
+    # Vendas diretas (com publicidade)
+    direct_items_quantity = Column(Integer, default=0)
+    direct_units_quantity = Column(Integer, default=0)
+    direct_amount = Column(Numeric(12, 2), default=0)
+    
+    # Vendas indiretas (assistidas)
+    indirect_items_quantity = Column(Integer, default=0)
+    indirect_units_quantity = Column(Integer, default=0)
+    indirect_amount = Column(Numeric(12, 2), default=0)
+    
+    # Vendas totais
+    advertising_items_quantity = Column(Integer, default=0)
+    units_quantity = Column(Integer, default=0)
+    total_amount = Column(Numeric(12, 2), default=0)
+    
+    # Métricas adicionais
+    cvr = Column(Numeric(8, 4), nullable=True)  # Taxa de conversão
+    roas = Column(Numeric(8, 4), nullable=True)  # Return on Ad Spend
+    sov = Column(Numeric(8, 4), nullable=True)  # Share of Voice
+    
+    # Período de sincronização (mantido para compatibilidade)
+    period_days = Column(Integer, default=15)  # Período em dias (7, 15, 30, 60, 90)
+    
+    # Campos de data para filtro de período
+    data_period_start = Column(DateTime, nullable=True)  # Data de início do período dos dados
+    data_period_end = Column(DateTime, nullable=True)    # Data de fim do período dos dados
+    
+    # Métricas de impressão
+    impression_share = Column(Numeric(8, 4), nullable=True)
+    top_impression_share = Column(Numeric(8, 4), nullable=True)
+    lost_impression_share_by_budget = Column(Numeric(8, 4), nullable=True)
+    lost_impression_share_by_ad_rank = Column(Numeric(8, 4), nullable=True)
+    acos_benchmark = Column(Numeric(8, 4), nullable=True)
+    
+    # Informações da campanha
+    campaign_name = Column(String(255), nullable=True)
+    campaign_status = Column(String(50), nullable=True)
+    campaign_budget = Column(Numeric(12, 2), nullable=True)
+    campaign_acos_target = Column(Numeric(8, 4), nullable=True)
+    campaign_strategy = Column(String(50), nullable=True)  # profitability, increase, visibility
+    
+    # Dados completos em JSON para flexibilidade
+    full_data = Column(JSON, nullable=True)  # Dados completos da API
+    metrics_data = Column(JSON, nullable=True)  # Métricas detalhadas
+    campaign_data = Column(JSON, nullable=True)  # Dados da campanha
+    
+    # Timestamps
+    ml_date_created = Column(DateTime, nullable=True)
+    ml_last_updated = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    company = relationship("Company")

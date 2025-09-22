@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Package, 
   ExternalLink, 
@@ -96,6 +97,12 @@ const ProductDetailsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [catalogCompetitors, setCatalogCompetitors] = useState<any[]>([]);
   const [loadingCompetitors, setLoadingCompetitors] = useState(false);
+  
+  // Estados para publicidade
+  const [adsData, setAdsData] = useState<any>(null);
+  const [loadingAds, setLoadingAds] = useState(false);
+  const [syncingAds, setSyncingAds] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<number>(15);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -122,6 +129,12 @@ const ProductDetailsPage: React.FC = () => {
       loadCatalogCompetitors(product.catalog_product_id);
     }
   }, [product?.catalog_product_id]);
+
+  useEffect(() => {
+    if (product?.id) {
+      loadAdsData(product.id);
+    }
+  }, [product?.id]);
 
   const isOnSale = (product: MercadoLivreProduct) => {
     if (!product) return false;
@@ -249,6 +262,57 @@ const ProductDetailsPage: React.FC = () => {
     }
   };
 
+  // Funções para análise de publicidade
+  const loadAdsData = async (itemId: string) => {
+    setLoadingAds(true);
+    try {
+      console.log('=== CARREGANDO DADOS DE PUBLICIDADE DO BANCO ===');
+      
+      const data = await mercadoLivreApi.getProductAdsFromDb(itemId, selectedPeriod);
+      console.log('Resposta da API:', data);
+
+      if (data.success) {
+        setAdsData(data.ads_data);
+        // Definir o período baseado nos dados do banco
+        if (data.ads_data.period_days) {
+          setSelectedPeriod(data.ads_data.period_days);
+        }
+        console.log('Dados de publicidade carregados:', data.ads_data);
+      } else {
+        setAdsData(null);
+        console.log('Nenhum dado de publicidade encontrado');
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar dados de publicidade:', error);
+      setAdsData(null);
+    } finally {
+      setLoadingAds(false);
+    }
+  };
+
+  const syncAdsData = async (itemId: string) => {
+    setSyncingAds(true);
+    try {
+      console.log('=== SINCRONIZANDO DADOS DE PUBLICIDADE ===');
+      console.log('Baixando dados de todos os períodos (7, 15, 30, 60, 90 dias)');
+      
+      const data = await mercadoLivreApi.syncProductAdsData(itemId);
+      console.log('Resposta da sincronização:', data);
+
+      if (data.success) {
+        // Após sincronizar, carregar do banco de dados
+        await loadAdsData(itemId);
+        console.log('Dados de publicidade sincronizados com sucesso');
+      } else {
+        console.log('Falha na sincronização:', data.message);
+      }
+    } catch (error: any) {
+      console.error('Erro ao sincronizar dados de publicidade:', error);
+    } finally {
+      setSyncingAds(false);
+    }
+  };
+
   // Função para determinar posição no catálogo
   const getCatalogPosition = (product: MercadoLivreProduct) => {
     if (!product.catalog_status) {
@@ -343,11 +407,12 @@ const ProductDetailsPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="basicas" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="basicas">Básicas</TabsTrigger>
               <TabsTrigger value="tecnicas">Técnicas</TabsTrigger>
               <TabsTrigger value="atributos">Atributos</TabsTrigger>
               <TabsTrigger value="catalogo">Catálogo</TabsTrigger>
+              <TabsTrigger value="publicidade">Publicidade</TabsTrigger>
             </TabsList>
             
             <TabsContent value="basicas" className="space-y-6 mt-6">
@@ -932,31 +997,49 @@ const ProductDetailsPage: React.FC = () => {
 
             <TabsContent value="catalogo" className="space-y-6 mt-6">
               <div className="space-y-6">
-                {/* Informações Básicas do Produto */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">📦 Informações do Produto</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">Título</Label>
-                        <p className="text-sm font-medium">{product.title}</p>
+                {/* Verificar se o produto é de catálogo */}
+                {!product.catalog_product_id ? (
+                  <div className="text-center py-12">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8">
+                      <div className="text-yellow-600 mb-4">
+                        <Package className="h-16 w-16 mx-auto" />
                       </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">ID do Anúncio</Label>
-                        <p className="text-sm font-mono">{product.id}</p>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">ID do Produto de Catálogo</Label>
-                        <p className="text-sm font-mono">{product.catalog_product_id || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-500">Família do Produto</Label>
-                        <p className="text-sm">{product.family_name || 'N/A'}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+                        Produto não listado no catálogo
+                      </h3>
+                      <p className="text-yellow-700">
+                        Este anúncio não está associado ao catálogo do Mercado Livre. 
+                        Para acessar as análises de catálogo, o produto precisa estar listado no catálogo oficial.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Informações Básicas do Produto */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">📦 Informações do Produto</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Título</Label>
+                            <p className="text-sm font-medium">{product.title}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">ID do Anúncio</Label>
+                            <p className="text-sm font-mono">{product.id}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">ID do Produto de Catálogo</Label>
+                            <p className="text-sm font-mono">{product.catalog_product_id}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Família do Produto</Label>
+                            <p className="text-sm">{product.family_name || 'N/A'}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
 
                   <Card>
                     <CardHeader>
@@ -1474,6 +1557,720 @@ const ProductDetailsPage: React.FC = () => {
                     </div>
                   </CardContent>
                 </Card>
+                  </>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="publicidade" className="space-y-6 mt-6">
+              <div className="space-y-6">
+                {/* Controles de Período e Atualização */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="period-select" className="text-sm font-medium text-gray-700">
+                          Período de Análise:
+                        </Label>
+                        <Select value={selectedPeriod.toString()} onValueChange={async (value) => {
+                          const newPeriod = parseInt(value);
+                          setSelectedPeriod(newPeriod);
+                          // Recarregar dados do novo período
+                          if (product?.id) {
+                            setLoadingAds(true);
+                            try {
+                              console.log(`=== CARREGANDO DADOS PARA PERÍODO ${newPeriod} DIAS ===`);
+                              const data = await mercadoLivreApi.getProductAdsFromDb(product.id, newPeriod);
+                              console.log('Resposta da API para novo período:', data);
+                              
+                              if (data.success) {
+                                setAdsData(data.ads_data);
+                                console.log('Dados de publicidade carregados para novo período:', data.ads_data);
+                              } else {
+                                setAdsData(null);
+                                console.log('Nenhum dado de publicidade encontrado para o período selecionado');
+                              }
+                            } catch (error: any) {
+                              console.error('Erro ao carregar dados de publicidade:', error);
+                              setAdsData(null);
+                            } finally {
+                              setLoadingAds(false);
+                            }
+                          }
+                        }}>
+                          <SelectTrigger className="w-32">
+                            <SelectValue placeholder="Período" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="7">7 dias</SelectItem>
+                            <SelectItem value="15">15 dias</SelectItem>
+                            <SelectItem value="30">30 dias</SelectItem>
+                            <SelectItem value="60">60 dias</SelectItem>
+                            <SelectItem value="90">90 dias</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {loadingAds && (
+                        <div className="flex items-center gap-2 text-blue-600">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          <span className="text-sm">Carregando...</span>
+                        </div>
+                      )}
+                      {syncingAds && (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                          <span className="text-sm">Sincronizando...</span>
+                        </div>
+                      )}
+                      <Button
+                        onClick={() => {
+                          if (product?.id) {
+                            syncAdsData(product.id);
+                          }
+                        }}
+                        disabled={syncingAds}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {syncingAds ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Sincronizando...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Sincronizar
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Nota sobre limitação da API */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-start">
+                    <div className="text-blue-600 mr-3">
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm text-blue-700">
+                        Pode haver uma pequena divergência entre os dados mostrados aqui e os dados do site do Mercado Livre.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Verificar se há dados de publicidade */}
+                {!adsData ? (
+                  <div className="text-center py-12">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-8">
+                      <div className="text-blue-600 mb-4">
+                        <TrendingUp className="h-16 w-16 mx-auto" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-blue-800 mb-2">
+                        Dados de publicidade não encontrados
+                      </h3>
+                      <p className="text-blue-700 mb-4">
+                        Este anúncio não possui dados de publicidade (Product Ads) no banco de dados.
+                        Clique em "Sincronizar" para baixar os dados de todos os períodos (7, 15, 30, 60, 90 dias) do Mercado Livre.
+                      </p>
+                      
+                      <Button
+                        onClick={() => {
+                          if (product?.id) {
+                            syncAdsData(product.id);
+                          }
+                        }}
+                        disabled={syncingAds}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {syncingAds ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            Sincronizando...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Sincronizar
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Informações Básicas da Publicidade */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">📊 Informações da Publicidade</CardTitle>
+                          <p className="text-sm text-gray-500">
+                            Dados dos últimos {selectedPeriod} dias
+                          </p>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Status da Publicidade</Label>
+                            <Badge className={
+                              adsData.status === 'active' ? 'bg-green-100 text-green-800' :
+                              adsData.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
+                              adsData.status === 'hold' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }>
+                              {adsData.status === 'active' ? '🟢 Ativo' :
+                               adsData.status === 'paused' ? '🟡 Pausado' :
+                               adsData.status === 'hold' ? '🔴 Suspenso (Produto pausado/sem estoque)' :
+                               adsData.status === 'idle' ? '⚪ Inativo' :
+                               adsData.status === 'delegated' ? '🔄 Delegado' :
+                               adsData.status === 'revoked' ? '❌ Revogado' : adsData.status}
+                            </Badge>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">ID da Campanha</Label>
+                            <p className="text-sm font-mono">{adsData.campaign_id || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">ID do Anunciante</Label>
+                            <p className="text-sm font-mono">{adsData.advertiser_id || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Canal</Label>
+                            <Badge className="bg-blue-100 text-blue-800">
+                              {adsData.channel === 'marketplace' ? '🏪 Marketplace' :
+                               adsData.channel === 'mshops' ? '🛍️ Mercado Shops' : adsData.channel || 'N/A'}
+                            </Badge>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Recomendado</Label>
+                            <Badge className={adsData.recommended ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                              {adsData.recommended ? '✅ Sim' : '❌ Não'}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">💰 Análise de Investimento</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="bg-green-50 p-4 rounded-lg">
+                            <h4 className="font-semibold text-green-800 mb-3">💵 Investimento Total</h4>
+                            <div className="space-y-2">
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">Custo Total</Label>
+                                <p className="text-lg font-bold text-green-600">
+                                  R$ {adsData.cost?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">Custo por Clique (CPC)</Label>
+                                <p className="text-sm font-medium text-green-600">
+                                  R$ {adsData.cpc?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || 'N/A'}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">ACOS (Advertising Cost of Sales)</Label>
+                                <p className="text-sm font-medium text-green-600">
+                                  {adsData.acos ? `${adsData.acos.toFixed(2)}%` : 'N/A'}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">TACOS (Total Advertising Cost of Sales)</Label>
+                                <p className="text-sm font-medium text-green-600">
+                                  {adsData.tacos ? `${adsData.tacos.toFixed(2)}%` : 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <h4 className="font-semibold text-blue-800 mb-3">📈 Performance</h4>
+                            <div className="space-y-2">
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">Taxa de Cliques (CTR)</Label>
+                                <p className="text-sm font-medium text-blue-600">
+                                  {adsData.ctr ? `${adsData.ctr.toFixed(2)}%` : 'N/A'}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">Taxa de Conversão (CVR)</Label>
+                                <p className="text-sm font-medium text-blue-600">
+                                  {adsData.cvr ? `${adsData.cvr.toFixed(2)}%` : 'N/A'}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">ROAS (Return on Ad Spend)</Label>
+                                <p className="text-sm font-medium text-blue-600">
+                                  {adsData.roas ? `${adsData.roas.toFixed(2)}x` : 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Análise de Publicidade */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">
+                          📊 Análise de Publicidade
+                        </CardTitle>
+                        <CardDescription>
+                          Análise detalhada da performance da publicidade (últimos {selectedPeriod} dias)
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-6">
+                          {/* Métricas de Tráfego */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg">
+                              <h4 className="font-semibold text-purple-800 mb-3">👁️ Métricas de Tráfego</h4>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm">Impressões:</span>
+                                  <span className="font-bold text-purple-600">
+                                    {adsData.prints?.toLocaleString('pt-BR') || '0'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm">Cliques:</span>
+                                  <span className="font-bold text-purple-600">
+                                    {adsData.clicks?.toLocaleString('pt-BR') || '0'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm">Taxa de Cliques:</span>
+                                  <span className="font-bold text-purple-600">
+                                    {adsData.ctr ? `${adsData.ctr.toFixed(2)}%` : '0%'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
+                              <h4 className="font-semibold text-green-800 mb-3">💰 Métricas de Vendas</h4>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm">Vendas Orgânicas:</span>
+                                  <span className="font-bold text-green-600">
+                                    {adsData.organic_items_quantity?.toLocaleString('pt-BR') || '0'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm">Vendas Diretas:</span>
+                                  <span className="font-bold text-green-600">
+                                    {adsData.direct_items_quantity?.toLocaleString('pt-BR') || '0'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm">Vendas Indiretas:</span>
+                                  <span className="font-bold text-green-600">
+                                    {adsData.indirect_items_quantity?.toLocaleString('pt-BR') || '0'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm">Total de Vendas:</span>
+                                  <span className="font-bold text-green-600">
+                                    {adsData.units_quantity?.toLocaleString('pt-BR') || '0'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Análise de Receita */}
+                          <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
+                            <h4 className="font-semibold text-blue-800 mb-3">💵 Análise de Receita</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-green-600">
+                                  R$ {adsData.organic_units_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                                </div>
+                                <div className="text-xs text-gray-600">Receita Orgânica</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-blue-600">
+                                  R$ {adsData.direct_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                                </div>
+                                <div className="text-xs text-gray-600">Receita Direta</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-purple-600">
+                                  R$ {adsData.indirect_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                                </div>
+                                <div className="text-xs text-gray-600">Receita Indireta</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-orange-600">
+                                  R$ {adsData.total_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                                </div>
+                                <div className="text-xs text-gray-600">Receita Total</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Recomendações */}
+                        {/* Análise de Custo Marketing */}
+                        {product?.ads_cost && adsData?.cost && product?.price && (
+                          <Card className="mb-6">
+                            <CardHeader>
+                              <CardTitle className="text-lg">💰 Análise de Custo Marketing</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                  <h5 className="font-medium text-blue-800 mb-2">Custo Máximo por Produto</h5>
+                                  <p className="text-2xl font-bold text-blue-900">
+                                    R$ {(parseFloat(product.price) * parseFloat(product.ads_cost) / 100).toFixed(2)}
+                                  </p>
+                                  <p className="text-sm text-blue-600">
+                                    {product.ads_cost}% sobre R$ {parseFloat(product.price).toFixed(2)}
+                                  </p>
+                                </div>
+                                <div className="bg-green-50 p-4 rounded-lg">
+                                  <h5 className="font-medium text-green-800 mb-2">Gasto Real</h5>
+                                  <p className="text-2xl font-bold text-green-900">
+                                    R$ {adsData.cost.toFixed(2)}
+                                  </p>
+                                  <p className="text-sm text-green-600">Gasto real em publicidade ({selectedPeriod} dias)</p>
+                                </div>
+                                <div className="bg-purple-50 p-4 rounded-lg">
+                                  <h5 className="font-medium text-purple-800 mb-2">Produtos Vendidos</h5>
+                                  <p className="text-2xl font-bold text-purple-900">
+                                    {adsData.units_quantity || 0}
+                                  </p>
+                                  <p className="text-sm text-purple-600">Unidades vendidas (15 dias)</p>
+                                </div>
+                              </div>
+                              
+                              {/* Análise de Desempenho */}
+                              {(() => {
+                                const productPrice = parseFloat(product.price);
+                                const adsCostPercentage = parseFloat(product.ads_cost);
+                                const maxCostPerProduct = productPrice * adsCostPercentage / 100;
+                                const unitsSold = adsData.units_quantity || 0;
+                                const maxTotalCost = maxCostPerProduct * unitsSold;
+                                const actualCost = adsData.cost;
+                                const difference = actualCost - maxTotalCost;
+                                const percentage = maxTotalCost > 0 ? (difference / maxTotalCost) * 100 : 0;
+                                
+                                return (
+                                  <div className={`p-4 rounded-lg ${
+                                    Math.abs(percentage) <= 10 ? 'bg-green-100 border border-green-200' :
+                                    Math.abs(percentage) <= 25 ? 'bg-yellow-100 border border-yellow-200' :
+                                    'bg-red-100 border border-red-200'
+                                  }`}>
+                                    <h6 className="font-medium mb-2">
+                                      {Math.abs(percentage) <= 10 ? '✅' : 
+                                       Math.abs(percentage) <= 25 ? '⚠️' : '❌'} 
+                                      Análise de Desempenho
+                                    </h6>
+                                    <div className="space-y-2">
+                                      <p className="text-sm">
+                                        <span className="font-medium">Custo máximo total:</span> 
+                                        <span className="ml-2 text-blue-600">
+                                          R$ {maxTotalCost.toFixed(2)}
+                                        </span>
+                                        <span className="text-xs text-gray-500 ml-1">
+                                          ({unitsSold} produtos × R$ {maxCostPerProduct.toFixed(2)})
+                                        </span>
+                                      </p>
+                                      <p className="text-sm">
+                                        <span className="font-medium">Diferença:</span> 
+                                        <span className={`ml-2 ${
+                                          difference >= 0 ? 'text-red-600' : 'text-green-600'
+                                        }`}>
+                                          {difference >= 0 ? '+' : ''}R$ {difference.toFixed(2)}
+                                        </span>
+                                      </p>
+                                      <p className="text-sm">
+                                        <span className="font-medium">Percentual:</span> 
+                                        <span className={`ml-2 ${
+                                          Math.abs(percentage) <= 10 ? 'text-green-600' :
+                                          Math.abs(percentage) <= 25 ? 'text-yellow-600' :
+                                          'text-red-600'
+                                        }`}>
+                                          {percentage >= 0 ? '+' : ''}{percentage.toFixed(1)}%
+                                        </span>
+                                      </p>
+                                      <p className={`text-sm ${
+                                        Math.abs(percentage) <= 10 ? 'text-green-800' :
+                                        Math.abs(percentage) <= 25 ? 'text-yellow-800' :
+                                        'text-red-800'
+                                      }`}>
+                                        {Math.abs(percentage) <= 10 ? 
+                                          '✅ Excelente controle de custos! O gasto está dentro do percentual planejado.' :
+                                          Math.abs(percentage) <= 25 ? 
+                                          '⚠️ Atenção: O gasto está um pouco acima do percentual planejado. Considere revisar o orçamento.' :
+                                          '❌ Custo fora do controle: O gasto está significativamente acima do percentual planejado. Revise urgentemente o orçamento.'
+                                        }
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Análise de Custo Marketing - Todos os Produtos Vendidos */}
+                        {product?.ads_cost && adsData?.cost && product?.price && (
+                          <Card className="mb-6">
+                            <CardHeader>
+                              <CardTitle className="text-lg">📊 Análise de Custo Marketing - Todos os Produtos</CardTitle>
+                              <p className="text-sm text-gray-600">
+                                Considerando todos os produtos vendidos (orgânicos + publicidade) para ratear o custo de marketing
+                              </p>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                  <h5 className="font-medium text-blue-800 mb-2">Custo Máximo por Produto</h5>
+                                  <p className="text-2xl font-bold text-blue-900">
+                                    R$ {(parseFloat(product.price) * parseFloat(product.ads_cost) / 100).toFixed(2)}
+                                  </p>
+                                  <p className="text-sm text-blue-600">
+                                    {product.ads_cost}% sobre R$ {parseFloat(product.price).toFixed(2)}
+                                  </p>
+                                </div>
+                                <div className="bg-green-50 p-4 rounded-lg">
+                                  <h5 className="font-medium text-green-800 mb-2">Gasto Real</h5>
+                                  <p className="text-2xl font-bold text-green-900">
+                                    R$ {adsData.cost.toFixed(2)}
+                                  </p>
+                                  <p className="text-sm text-green-600">Gasto real em publicidade ({selectedPeriod} dias)</p>
+                                </div>
+                                <div className="bg-purple-50 p-4 rounded-lg">
+                                  <h5 className="font-medium text-purple-800 mb-2">Total de Produtos Vendidos</h5>
+                                  <p className="text-2xl font-bold text-purple-900">
+                                    {(adsData.units_quantity || 0) + (adsData.organic_units_quantity || 0)}
+                                  </p>
+                                  <p className="text-sm text-purple-600">
+                                    {adsData.units_quantity || 0} publicidade + {adsData.organic_units_quantity || 0} orgânicos ({selectedPeriod} dias)
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              {/* Análise de Desempenho - Todos os Produtos */}
+                              {(() => {
+                                const productPrice = parseFloat(product.price);
+                                const adsCostPercentage = parseFloat(product.ads_cost);
+                                const maxCostPerProduct = productPrice * adsCostPercentage / 100;
+                                const totalUnitsSold = (adsData.units_quantity || 0) + (adsData.organic_units_quantity || 0);
+                                const maxTotalCost = maxCostPerProduct * totalUnitsSold;
+                                const actualCost = adsData.cost;
+                                const difference = actualCost - maxTotalCost;
+                                const percentage = maxTotalCost > 0 ? (difference / maxTotalCost) * 100 : 0;
+                                
+                                return (
+                                  <div className={`p-4 rounded-lg ${
+                                    Math.abs(percentage) <= 10 ? 'bg-green-100 border border-green-200' :
+                                    Math.abs(percentage) <= 25 ? 
+                                      (percentage >= 0 ? 'bg-yellow-100 border border-yellow-200' : 'bg-green-100 border border-green-200') :
+                                      (percentage >= 0 ? 'bg-red-100 border border-red-200' : 'bg-green-100 border border-green-200')
+                                  }`}>
+                                    <h6 className="font-medium mb-2">
+                                      {Math.abs(percentage) <= 10 ? '✅' : 
+                                       Math.abs(percentage) <= 25 ? (percentage >= 0 ? '⚠️' : '✅') : 
+                                       (percentage >= 0 ? '❌' : '✅')} 
+                                      Análise de Desempenho - Rateio Total
+                                    </h6>
+                                    <div className="space-y-2">
+                                      <p className="text-sm">
+                                        <span className="font-medium">Custo máximo total:</span> 
+                                        <span className="ml-2 text-blue-600">
+                                          R$ {maxTotalCost.toFixed(2)}
+                                        </span>
+                                        <span className="text-xs text-gray-500 ml-1">
+                                          ({totalUnitsSold} produtos × R$ {maxCostPerProduct.toFixed(2)})
+                                        </span>
+                                      </p>
+                                      <p className="text-sm">
+                                        <span className="font-medium">Custo por produto vendido:</span> 
+                                        <span className="ml-2 text-blue-600">
+                                          R$ {totalUnitsSold > 0 ? (actualCost / totalUnitsSold).toFixed(2) : '0.00'}
+                                        </span>
+                                        <span className="text-xs text-gray-500 ml-1">
+                                          (R$ {actualCost.toFixed(2)} ÷ {totalUnitsSold} produtos)
+                                        </span>
+                                      </p>
+                                      <p className="text-sm">
+                                        <span className="font-medium">Diferença:</span> 
+                                        <span className={`ml-2 ${
+                                          difference >= 0 ? 'text-red-600' : 'text-green-600'
+                                        }`}>
+                                          {difference >= 0 ? '+' : ''}R$ {difference.toFixed(2)}
+                                        </span>
+                                      </p>
+                                      <p className="text-sm">
+                                        <span className="font-medium">Percentual:</span> 
+                                        <span className={`ml-2 ${
+                                          Math.abs(percentage) <= 10 ? 'text-green-600' :
+                                          Math.abs(percentage) <= 25 ? 
+                                            (percentage >= 0 ? 'text-yellow-600' : 'text-green-600') :
+                                            (percentage >= 0 ? 'text-red-600' : 'text-green-600')
+                                        }`}>
+                                          {percentage >= 0 ? '+' : ''}{percentage.toFixed(1)}%
+                                        </span>
+                                      </p>
+                                      <p className={`text-sm ${
+                                        Math.abs(percentage) <= 10 ? 'text-green-800' :
+                                        Math.abs(percentage) <= 25 ? 
+                                          (percentage >= 0 ? 'text-yellow-800' : 'text-green-800') :
+                                          (percentage >= 0 ? 'text-red-800' : 'text-green-800')
+                                      }`}>
+                                        {Math.abs(percentage) <= 10 ? 
+                                          '✅ Excelente! O custo de marketing está dentro do percentual planejado considerando todos os produtos vendidos.' :
+                                          Math.abs(percentage) <= 25 ? 
+                                          (percentage >= 0 ? 
+                                            '⚠️ Atenção: O custo de marketing está um pouco acima do percentual planejado. Considere revisar o orçamento.' :
+                                            '✅ Muito bom! O custo de marketing está abaixo do percentual planejado.'):
+                                          (percentage >= 0 ? 
+                                            '❌ Custo fora do controle: O custo de marketing está significativamente acima do percentual planejado. Revise urgentemente o orçamento.' :
+                                            '✅ Excelente! O custo de marketing está significativamente abaixo do percentual planejado. Você está economizando muito!')
+                                        }
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 p-4 rounded-lg">
+                          <h4 className="font-semibold text-yellow-800 mb-3">💡 Recomendações</h4>
+                          <div className="space-y-3">
+                              {/* Análise de ACOS */}
+                              {adsData.acos && (
+                                <div className={`p-3 rounded-lg ${
+                                  adsData.acos < 10 ? 'bg-green-100 border border-green-200' :
+                                  adsData.acos < 20 ? 'bg-yellow-100 border border-yellow-200' :
+                                  'bg-red-100 border border-red-200'
+                                }`}>
+                                  <p className={`text-sm ${
+                                    adsData.acos < 10 ? 'text-green-800' :
+                                    adsData.acos < 20 ? 'text-yellow-800' :
+                                    'text-red-800'
+                                  }`}>
+                                    {adsData.acos < 10 ? '✅ ACOS excelente' :
+                                     adsData.acos < 20 ? '⚠️ ACOS moderado' :
+                                     '❌ ACOS alto'} - Seu ACOS de {adsData.acos.toFixed(2)}% está 
+                                    {adsData.acos < 10 ? ' muito bom' :
+                                     adsData.acos < 20 ? ' dentro do esperado' :
+                                     ' acima do ideal'}. 
+                                    {adsData.acos >= 20 && ' Considere otimizar suas campanhas para reduzir o custo por venda.'}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Análise de CTR */}
+                              {adsData.ctr && (
+                                <div className={`p-3 rounded-lg ${
+                                  adsData.ctr > 0.02 ? 'bg-green-100 border border-green-200' :
+                                  adsData.ctr > 0.01 ? 'bg-yellow-100 border border-yellow-200' :
+                                  'bg-red-100 border border-red-200'
+                                }`}>
+                                  <p className={`text-sm ${
+                                    adsData.ctr > 0.02 ? 'text-green-800' :
+                                    adsData.ctr > 0.01 ? 'text-yellow-800' :
+                                    'text-red-800'
+                                  }`}>
+                                    {adsData.ctr > 0.02 ? '✅ CTR excelente' :
+                                     adsData.ctr > 0.01 ? '⚠️ CTR moderado' :
+                                     '❌ CTR baixo'} - Sua taxa de cliques de {adsData.ctr.toFixed(2)}% está 
+                                    {adsData.ctr > 0.02 ? ' muito boa' :
+                                     adsData.ctr > 0.01 ? ' dentro da média' :
+                                     ' abaixo da média'}. 
+                                    {adsData.ctr <= 0.01 && ' Considere melhorar o título e as imagens do anúncio para aumentar o engajamento.'}
+                                  </p>
+                                </div>
+                              )}
+
+                         {/* Análise de ROAS */}
+                         {adsData.roas && (
+                           <div className={`p-3 rounded-lg ${
+                             adsData.roas > 4 ? 'bg-green-100 border border-green-200' :
+                             adsData.roas > 2 ? 'bg-yellow-100 border border-yellow-200' :
+                             'bg-red-100 border border-red-200'
+                           }`}>
+                             <p className={`text-sm ${
+                               adsData.roas > 4 ? 'text-green-800' :
+                               adsData.roas > 2 ? 'text-yellow-800' :
+                               'text-red-800'
+                             }`}>
+                               {adsData.roas > 4 ? '✅ ROAS excelente' :
+                                adsData.roas > 2 ? '⚠️ ROAS moderado' :
+                                '❌ ROAS baixo'} - Seu retorno sobre investimento de {adsData.roas.toFixed(2)}x está 
+                               {adsData.roas > 4 ? ' muito bom' :
+                                adsData.roas > 2 ? ' dentro do esperado' :
+                                ' abaixo do ideal'}. 
+                               {adsData.roas <= 2 && ' Considere otimizar suas campanhas para melhorar o retorno.'}
+                             </p>
+                           </div>
+                         )}
+
+                         {/* Análise de TACOS */}
+                         {adsData.tacos && (
+                           <div className={`p-3 rounded-lg ${
+                             adsData.tacos < 5 ? 'bg-green-100 border border-green-200' :
+                             adsData.tacos < 10 ? 'bg-yellow-100 border border-yellow-200' :
+                             'bg-red-100 border border-red-200'
+                           }`}>
+                             <p className={`text-sm ${
+                               adsData.tacos < 5 ? 'text-green-800' :
+                               adsData.tacos < 10 ? 'text-yellow-800' :
+                               'text-red-800'
+                             }`}>
+                               {adsData.tacos < 5 ? '✅ TACOS excelente' :
+                                adsData.tacos < 10 ? '⚠️ TACOS moderado' :
+                                '❌ TACOS alto'} - Seu custo total de publicidade de {adsData.tacos.toFixed(2)}% está 
+                               {adsData.tacos < 5 ? ' muito baixo' :
+                                adsData.tacos < 10 ? ' dentro do esperado' :
+                                ' acima do ideal'}. 
+                               {adsData.tacos >= 10 && ' Considere otimizar suas campanhas para reduzir o custo total de publicidade.'}
+                             </p>
+                           </div>
+                         )}
+
+                         {/* Status da Publicidade */}
+                         {adsData.status !== 'active' && (
+                           <div className="p-3 rounded-lg bg-orange-100 border border-orange-200">
+                             <p className="text-sm text-orange-800">
+                               {adsData.status === 'hold' ? 
+                                 '🔴 Publicidade suspensa: Seu produto está pausado ou sem estoque no Mercado Livre. A publicidade foi automaticamente suspensa. Para reativar, primeiro reative o produto e adicione estoque.' :
+                                 adsData.status === 'paused' ?
+                                 '⚠️ Publicidade pausada: Sua publicidade está pausada. Para maximizar as vendas, considere reativar a publicidade.' :
+                                 '⚠️ Publicidade inativa: Sua publicidade está inativa. Para maximizar as vendas, considere reativar a publicidade.'
+                               }
+                             </p>
+                           </div>
+                         )}
+
+                              {/* Recomendação de Ativação */}
+                              {adsData.status === 'idle' && (
+                                <div className="p-3 rounded-lg bg-blue-100 border border-blue-200">
+                                  <p className="text-sm text-blue-800">
+                                    🚀 Oportunidade de crescimento: Seu anúncio está disponível para publicidade mas não está ativo. 
+                                    Considere ativar a publicidade para aumentar a visibilidade e as vendas.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
               </div>
             </TabsContent>
 

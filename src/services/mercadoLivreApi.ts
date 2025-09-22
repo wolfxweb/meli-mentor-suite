@@ -210,6 +210,25 @@ class MercadoLivreApiService {
       method: 'POST',
     });
   }
+
+  // Métodos para publicidade (Product Ads)
+  async getAdvertisers(): Promise<any> {
+    return this.request('/api/mercado-livre/advertisers');
+  }
+
+  async getProductAdsItemDetails(itemId: string): Promise<any> {
+    return this.request(`/api/mercado-livre/product-ads/items/${itemId}`);
+  }
+
+  async syncProductAdsData(itemId: string): Promise<any> {
+    return this.request(`/api/mercado-livre/product-ads/sync/${itemId}`, {
+      method: 'POST',
+    });
+  }
+
+  async getProductAdsFromDb(itemId: string, periodDays: number = 15): Promise<any> {
+    return this.request(`/api/mercado-livre/product-ads/db/${itemId}?period_days=${periodDays}`);
+  }
 }
 
 export const mercadoLivreApi = new MercadoLivreApiService(API_BASE_URL);

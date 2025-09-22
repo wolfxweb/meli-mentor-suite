@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import MercadoLivreIntegration
+from app.models import MercadoLivreIntegration, ProductAdsData
 from app.schemas import MercadoLivreIntegration as MercadoLivreIntegrationSchema, OAuth2AuthorizationRequest
 from app.auth import get_current_user
 from app.services.mercado_livre import mercado_livre_service
@@ -619,5 +619,546 @@ async def get_item_costs(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro interno ao buscar custos do item"
+        )
+
+# ===== ENDPOINTS DE PUBLICIDADE (PRODUCT ADS) =====
+
+@router.get("/advertisers")
+async def get_advertisers(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca os anunciantes (advertisers) disponíveis para o usuário."""
+    try:
+        integration = db.query(MercadoLivreIntegration).filter(
+            MercadoLivreIntegration.company_id == current_user.company_id,
+            MercadoLivreIntegration.is_active == True
+        ).first()
+        
+        if not integration:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Integração com Mercado Livre não encontrada"
+            )
+        
+        # Verificar se o token precisa ser renovado
+        valid_token = integration.access_token
+        if integration.expires_at and datetime.utcnow() >= integration.expires_at:
+            try:
+                new_token_data = await mercado_livre_service.refresh_access_token(integration.refresh_token)
+                integration.access_token = new_token_data.access_token
+                integration.refresh_token = new_token_data.refresh_token
+                integration.expires_at = datetime.utcnow() + timedelta(seconds=new_token_data.expires_in)
+                db.commit()
+                valid_token = integration.access_token
+            except Exception as e:
+                logger.error(f"Erro ao renovar token: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Erro ao renovar token de acesso"
+                )
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://api.mercadolibre.com/advertising/advertisers?product_id=PADS&user_id={integration.user_id}",
+                headers={
+                    "Authorization": f"Bearer {valid_token}",
+                    "Content-Type": "application/json",
+                    "Api-Version": "1"
+                }
+            )
+            
+            if response.status_code == 200:
+                advertisers_data = response.json()
+                advertisers_result = {
+                    "success": True,
+                    "advertisers": advertisers_data.get("advertisers", []),
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            elif response.status_code == 404:
+                advertisers_result = {
+                    "success": False,
+                    "message": "Usuário não tem permissões para Product Ads",
+                    "advertisers": [],
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Erro ao buscar anunciantes: {response.text}"
+                )
+        
+        return advertisers_result
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar anunciantes: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao buscar anunciantes"
+        )
+
+@router.get("/product-ads/items/{item_id}")
+async def get_product_ads_item_details(
+    item_id: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca detalhes de um anúncio específico no Product Ads."""
+    try:
+        integration = db.query(MercadoLivreIntegration).filter(
+            MercadoLivreIntegration.company_id == current_user.company_id,
+            MercadoLivreIntegration.is_active == True
+        ).first()
+        
+        if not integration:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Integração com Mercado Livre não encontrada"
+            )
+        
+        # Verificar se o token precisa ser renovado
+        valid_token = integration.access_token
+        if integration.expires_at and datetime.utcnow() >= integration.expires_at:
+            try:
+                new_token_data = await mercado_livre_service.refresh_access_token(integration.refresh_token)
+                integration.access_token = new_token_data.access_token
+                integration.refresh_token = new_token_data.refresh_token
+                integration.expires_at = datetime.utcnow() + timedelta(seconds=new_token_data.expires_in)
+                db.commit()
+                valid_token = integration.access_token
+            except Exception as e:
+                logger.error(f"Erro ao renovar token: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Erro ao renovar token de acesso"
+                )
+        
+        # Primeiro, buscar os anunciantes para obter o advertiser_id
+        async with httpx.AsyncClient() as client:
+            advertisers_response = await client.get(
+                f"https://api.mercadolibre.com/advertising/advertisers?product_id=PADS&user_id={integration.user_id}",
+                headers={
+                    "Authorization": f"Bearer {valid_token}",
+                    "Content-Type": "application/json",
+                    "Api-Version": "1"
+                }
+            )
+            
+            if advertisers_response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Não foi possível obter informações do anunciante"
+                )
+            
+            advertisers_data = advertisers_response.json()
+            advertisers = advertisers_data.get("advertisers", [])
+            
+            if not advertisers:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Nenhum anunciante encontrado"
+                )
+            
+            # Usar o primeiro anunciante (geralmente há apenas um por usuário)
+            advertiser = advertisers[0]
+            advertiser_id = advertiser.get("advertiser_id")
+            site_id = advertiser.get("site_id", "MLB")
+            
+            # Buscar detalhes do anúncio no Product Ads - endpoint correto
+            ads_response = await client.get(
+                f"https://api.mercadolibre.com/marketplace/advertising/{site_id}/product_ads/ads/{item_id}",
+                headers={
+                    "Authorization": f"Bearer {valid_token}",
+                    "api-version": "2"
+                }
+            )
+            
+            if ads_response.status_code == 200:
+                ads_data = ads_response.json()
+                logger.info(f"Dados do anúncio obtidos: {ads_data}")
+                ads_result = {
+                    "success": True,
+                    "item_id": item_id,
+                    "advertiser_id": advertiser_id,
+                    "site_id": site_id,
+                    "ads_data": ads_data,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            elif ads_response.status_code == 404:
+                ads_result = {
+                    "success": False,
+                    "message": "Anúncio não encontrado no Product Ads",
+                    "item_id": item_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            else:
+                raise HTTPException(
+                    status_code=ads_response.status_code,
+                    detail=f"Erro ao buscar anúncio no Product Ads: {ads_response.text}"
+                )
+        
+        return ads_result
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar anúncio no Product Ads: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao buscar anúncio no Product Ads"
+        )
+
+@router.post("/product-ads/sync/{item_id}")
+async def sync_product_ads_data(
+    item_id: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Sincroniza dados de publicidade de um anúncio específico para todos os períodos e salva no banco de dados.
+    
+    Args:
+        item_id: ID do item no Mercado Livre
+    """
+    try:
+        logger.info(f"=== INICIANDO SINCRONIZAÇÃO DE PUBLICIDADE PARA {item_id} ===")
+        integration = db.query(MercadoLivreIntegration).filter(
+            MercadoLivreIntegration.company_id == current_user.company_id,
+            MercadoLivreIntegration.is_active == True
+        ).first()
+        
+        if not integration:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Integração com Mercado Livre não encontrada"
+            )
+        
+        # Verificar se o token precisa ser renovado
+        valid_token = integration.access_token
+        if integration.expires_at and datetime.utcnow() >= integration.expires_at:
+            try:
+                new_token_data = await mercado_livre_service.refresh_access_token(integration.refresh_token)
+                integration.access_token = new_token_data.access_token
+                integration.refresh_token = new_token_data.refresh_token
+                integration.expires_at = datetime.utcnow() + timedelta(seconds=new_token_data.expires_in)
+                db.commit()
+                valid_token = integration.access_token
+            except Exception as e:
+                logger.error(f"Erro ao renovar token: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Erro ao renovar token de acesso"
+                )
+        
+        # Inicializar variáveis
+        sync_result = None
+        error_detail = None
+        periods = [7, 15, 30, 60, 90]  # Todos os períodos para sincronizar
+        sync_results = []
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                # Buscar anunciantes - endpoint correto conforme documentação
+                advertisers_response = await client.get(
+                    f"https://api.mercadolibre.com/advertising/advertisers?product_id=PADS&user_id={integration.user_id}",
+                    headers={
+                        "Authorization": f"Bearer {valid_token}",
+                        "Content-Type": "application/json",
+                        "Api-Version": "1"
+                    }
+                )
+                
+                if advertisers_response.status_code != 200:
+                    error_detail = "Não foi possível obter informações do anunciante"
+                    logger.error(f"Erro ao buscar anunciantes: {advertisers_response.status_code} - {advertisers_response.text}")
+                    return
+                
+                advertisers_data = advertisers_response.json()
+                advertisers = advertisers_data.get("advertisers", [])
+                
+                if not advertisers:
+                    error_detail = "Nenhum anunciante encontrado"
+                    logger.error("Nenhum anunciante encontrado na resposta")
+                    return
+                
+                advertiser = advertisers[0]
+                advertiser_id = advertiser.get("advertiser_id")
+                site_id = advertiser.get("site_id", "MLB")
+                
+                # Buscar dados do anúncio no Product Ads - endpoint correto conforme documentação
+                ads_response = await client.get(
+                    f"https://api.mercadolibre.com/marketplace/advertising/{site_id}/product_ads/ads/{item_id}",
+                    headers={
+                        "Authorization": f"Bearer {valid_token}",
+                        "api-version": "2"
+                    }
+                )
+                
+                if ads_response.status_code != 200:
+                    if ads_response.status_code == 404:
+                        error_detail = "Anúncio não encontrado no Product Ads"
+                        logger.error(f"Anúncio não encontrado: {item_id}")
+                    else:
+                        error_detail = f"Erro ao buscar anúncio no Product Ads: {ads_response.text}"
+                        logger.error(f"Erro ao buscar anúncio: {ads_response.status_code} - {ads_response.text}")
+                    return
+                
+                # Sucesso - continuar com o processamento
+                ads_data = ads_response.json()
+                logger.info(f"Dados do anúncio obtidos na sincronização: {ads_data}")
+                
+                # Iterar sobre todos os períodos
+                for period_days in periods:
+                    logger.info(f"=== SINCRONIZANDO PERÍODO DE {period_days} DIAS ===")
+                    
+                    # Buscar métricas do anúncio (período atual)
+                    date_to = datetime.utcnow().strftime("%Y-%m-%d")
+                    date_from = (datetime.utcnow() - timedelta(days=period_days)).strftime("%Y-%m-%d")
+                    
+                    logger.info(f"Buscando métricas do período: {date_from} até {date_to} ({period_days} dias)")
+                    
+                    # Buscar métricas do anúncio específico - usar endpoint correto conforme documentação
+                    metrics_response = await client.get(
+                        f"https://api.mercadolibre.com/marketplace/advertising/{site_id}/product_ads/ads/{item_id}",
+                        params={
+                            "date_from": date_from,
+                            "date_to": date_to,
+                            "metrics": "clicks,prints,ctr,cost,cpc,acos,organic_units_quantity,organic_units_amount,organic_items_quantity,direct_items_quantity,indirect_items_quantity,advertising_items_quantity,cvr,roas,sov,direct_units_quantity,indirect_units_quantity,units_quantity,direct_amount,indirect_amount,total_amount"
+                        },
+                        headers={
+                            "Authorization": f"Bearer {valid_token}",
+                            "api-version": "2"
+                        }
+                    )
+                    
+                    metrics_data = {}
+                    if metrics_response.status_code == 200:
+                        metrics_data = metrics_response.json()
+                        logger.info(f"Métricas obtidas para {period_days} dias: {metrics_data}")
+                    else:
+                        logger.warning(f"Erro ao obter métricas para {period_days} dias: {metrics_response.status_code} - {metrics_response.text}")
+                        continue  # Pular para o próximo período se houver erro
+                    
+                    # Salvar ou atualizar no banco de dados para este período
+                    existing_ads = db.query(ProductAdsData).filter(
+                        ProductAdsData.company_id == current_user.company_id,
+                        ProductAdsData.item_id == item_id,
+                        ProductAdsData.period_days == period_days
+                    ).first()
+                    
+                    # Criar ou atualizar registro para este período
+                    if existing_ads:
+                        # Atualizar dados existentes
+                        existing_ads.campaign_id = ads_data.get("campaign_id")
+                        existing_ads.advertiser_id = advertiser_id
+                        existing_ads.title = ads_data.get("title", "")
+                        existing_ads.price = ads_data.get("price", 0)
+                        existing_ads.status = ads_data.get("status", "")
+                        existing_ads.data_period_start = datetime.strptime(date_from, "%Y-%m-%d")
+                        existing_ads.data_period_end = datetime.strptime(date_to, "%Y-%m-%d")
+                        existing_ads.ml_last_updated = datetime.utcnow()
+                        existing_ads.updated_at = datetime.utcnow()
+                        ads_record = existing_ads
+                    else:
+                        # Criar novo registro
+                        ads_record = ProductAdsData(
+                            company_id=current_user.company_id,
+                            item_id=item_id,
+                            campaign_id=ads_data.get("campaign_id"),
+                            advertiser_id=advertiser_id,
+                            title=ads_data.get("title", ""),
+                            price=ads_data.get("price", 0),
+                            status=ads_data.get("status", ""),
+                            period_days=period_days,
+                            data_period_start=datetime.strptime(date_from, "%Y-%m-%d"),
+                            data_period_end=datetime.strptime(date_to, "%Y-%m-%d"),
+                            ml_date_created=datetime.utcnow(),
+                            ml_last_updated=datetime.utcnow()
+                        )
+                        db.add(ads_record)
+                    
+                    # Processar métricas se disponíveis
+                    if metrics_data:
+                        metrics = None
+                        if "metrics_summary" in metrics_data:
+                            metrics = metrics_data["metrics_summary"]
+                        elif "metrics" in metrics_data:
+                            metrics = metrics_data["metrics"]
+                        elif isinstance(metrics_data, dict) and any(key in metrics_data for key in ["clicks", "prints", "cost"]):
+                            metrics = metrics_data
+                        
+                        if metrics:
+                            ads_record.clicks = metrics.get("clicks", 0)
+                            ads_record.prints = metrics.get("prints", 0)
+                            ads_record.ctr = metrics.get("ctr")
+                            ads_record.cost = metrics.get("cost", 0)
+                            ads_record.cpc = metrics.get("cpc")
+                            ads_record.acos = metrics.get("acos")
+                            ads_record.tacos = metrics.get("tacos")
+                            ads_record.organic_units_quantity = metrics.get("organic_units_quantity", 0)
+                            ads_record.organic_units_amount = metrics.get("organic_units_amount", 0)
+                            ads_record.organic_items_quantity = metrics.get("organic_items_quantity", 0)
+                            ads_record.direct_items_quantity = metrics.get("direct_items_quantity", 0)
+                            ads_record.direct_units_quantity = metrics.get("direct_units_quantity", 0)
+                            ads_record.direct_amount = metrics.get("direct_amount", 0)
+                            ads_record.indirect_items_quantity = metrics.get("indirect_items_quantity", 0)
+                            ads_record.indirect_units_quantity = metrics.get("indirect_units_quantity", 0)
+                            ads_record.indirect_amount = metrics.get("indirect_amount", 0)
+                            ads_record.advertising_items_quantity = metrics.get("advertising_items_quantity", 0)
+                            ads_record.units_quantity = metrics.get("units_quantity", 0)
+                            ads_record.total_amount = metrics.get("total_amount", 0)
+                            ads_record.cvr = metrics.get("cvr")
+                            ads_record.roas = metrics.get("roas")
+                            ads_record.sov = metrics.get("sov")
+                            
+                            # Calcular TACOS se não estiver disponível
+                            if ads_record.tacos is None and ads_record.cost and ads_record.total_amount:
+                                total_revenue = float(ads_record.total_amount) + float(ads_record.organic_units_amount or 0)
+                                if total_revenue > 0:
+                                    ads_record.tacos = (float(ads_record.cost) / total_revenue) * 100
+                    
+                    ads_record.full_data = ads_data
+                    ads_record.metrics_data = metrics_data
+                    db.commit()
+                    
+                    sync_results.append({
+                        "period_days": period_days,
+                        "success": True,
+                        "record_id": ads_record.id
+                    })
+                    
+                    logger.info(f"Período de {period_days} dias sincronizado com sucesso")
+                
+                sync_result = {
+                    "success": True,
+                    "message": f"Dados de publicidade sincronizados com sucesso para {len(sync_results)} períodos",
+                    "item_id": item_id,
+                    "advertiser_id": advertiser_id,
+                    "site_id": site_id,
+                    "ads_data": ads_data,
+                    "sync_results": sync_results,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
+            except Exception as e:
+                logger.error(f"Erro durante a sincronização: {e}")
+                error_detail = f"Erro interno durante a sincronização: {str(e)}"
+        
+        # Verificar se houve erro durante o processamento
+        if error_detail:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_detail
+            )
+        
+        return sync_result
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao sincronizar dados de publicidade: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao sincronizar dados de publicidade"
+        )
+
+@router.get("/product-ads/db/{item_id}")
+async def get_product_ads_from_db(
+    item_id: str,
+    period_days: int = 15,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca dados de publicidade de um anúncio específico do banco de dados para o período selecionado."""
+    try:
+        ads_data = db.query(ProductAdsData).filter(
+            ProductAdsData.company_id == current_user.company_id,
+            ProductAdsData.item_id == item_id,
+            ProductAdsData.period_days == period_days
+        ).first()
+        
+        if not ads_data:
+            return {
+                "success": False,
+                "message": "Dados de publicidade não encontrados no banco de dados",
+                "item_id": item_id,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        return {
+            "success": True,
+            "item_id": item_id,
+            "ads_data": {
+                "id": ads_data.id,
+                "item_id": ads_data.item_id,
+                "campaign_id": ads_data.campaign_id,
+                "advertiser_id": ads_data.advertiser_id,
+                "title": ads_data.title,
+                "price": float(ads_data.price) if ads_data.price else 0,
+                "status": ads_data.status,
+                "has_discount": ads_data.has_discount,
+                "catalog_listing": ads_data.catalog_listing,
+                "logistic_type": ads_data.logistic_type,
+                "listing_type_id": ads_data.listing_type_id,
+                "domain_id": ads_data.domain_id,
+                "buy_box_winner": ads_data.buy_box_winner,
+                "channel": ads_data.channel,
+                "official_store_id": ads_data.official_store_id,
+                "brand_value_id": ads_data.brand_value_id,
+                "brand_value_name": ads_data.brand_value_name,
+                "condition": ads_data.condition,
+                "current_level": ads_data.current_level,
+                "deferred_stock": ads_data.deferred_stock,
+                "picture_id": ads_data.picture_id,
+                "thumbnail": ads_data.thumbnail,
+                "permalink": ads_data.permalink,
+                "recommended": ads_data.recommended,
+                "clicks": ads_data.clicks,
+                "prints": ads_data.prints,
+                "ctr": float(ads_data.ctr) if ads_data.ctr else None,
+                "cost": float(ads_data.cost) if ads_data.cost else 0,
+                "cpc": float(ads_data.cpc) if ads_data.cpc else None,
+                "acos": float(ads_data.acos) if ads_data.acos else None,
+                "tacos": float(ads_data.tacos) if ads_data.tacos else None,
+                "organic_units_quantity": ads_data.organic_units_quantity,
+                "organic_units_amount": float(ads_data.organic_units_amount) if ads_data.organic_units_amount else 0,
+                "organic_items_quantity": ads_data.organic_items_quantity,
+                "direct_items_quantity": ads_data.direct_items_quantity,
+                "direct_units_quantity": ads_data.direct_units_quantity,
+                "direct_amount": float(ads_data.direct_amount) if ads_data.direct_amount else 0,
+                "indirect_items_quantity": ads_data.indirect_items_quantity,
+                "indirect_units_quantity": ads_data.indirect_units_quantity,
+                "indirect_amount": float(ads_data.indirect_amount) if ads_data.indirect_amount else 0,
+                "advertising_items_quantity": ads_data.advertising_items_quantity,
+                "units_quantity": ads_data.units_quantity,
+                "total_amount": float(ads_data.total_amount) if ads_data.total_amount else 0,
+                "cvr": float(ads_data.cvr) if ads_data.cvr else None,
+                "roas": float(ads_data.roas) if ads_data.roas else None,
+                "sov": float(ads_data.sov) if ads_data.sov else None,
+                "period_days": ads_data.period_days,
+                "impression_share": float(ads_data.impression_share) if ads_data.impression_share else None,
+                "top_impression_share": float(ads_data.top_impression_share) if ads_data.top_impression_share else None,
+                "lost_impression_share_by_budget": float(ads_data.lost_impression_share_by_budget) if ads_data.lost_impression_share_by_budget else None,
+                "lost_impression_share_by_ad_rank": float(ads_data.lost_impression_share_by_ad_rank) if ads_data.lost_impression_share_by_ad_rank else None,
+                "acos_benchmark": float(ads_data.acos_benchmark) if ads_data.acos_benchmark else None,
+                "campaign_name": ads_data.campaign_name,
+                "campaign_status": ads_data.campaign_status,
+                "campaign_budget": float(ads_data.campaign_budget) if ads_data.campaign_budget else None,
+                "campaign_acos_target": float(ads_data.campaign_acos_target) if ads_data.campaign_acos_target else None,
+                "campaign_strategy": ads_data.campaign_strategy,
+                "ml_date_created": ads_data.ml_date_created.isoformat() if ads_data.ml_date_created else None,
+                "ml_last_updated": ads_data.ml_last_updated.isoformat() if ads_data.ml_last_updated else None,
+                "created_at": ads_data.created_at.isoformat() if ads_data.created_at else None,
+                "updated_at": ads_data.updated_at.isoformat() if ads_data.updated_at else None
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar dados de publicidade do banco: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao buscar dados de publicidade"
         )
 
