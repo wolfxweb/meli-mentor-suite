@@ -116,6 +116,13 @@ const ProductDetailsPage: React.FC = () => {
     fetchProduct();
   }, [id]);
 
+  // Carregar concorrentes do catálogo automaticamente quando o produto for carregado
+  useEffect(() => {
+    if (product?.catalog_product_id) {
+      loadCatalogCompetitors(product.catalog_product_id);
+    }
+  }, [product?.catalog_product_id]);
+
   const isOnSale = (product: MercadoLivreProduct) => {
     if (!product) return false;
     
@@ -198,15 +205,30 @@ const ProductDetailsPage: React.FC = () => {
   const loadCatalogCompetitors = async (catalogProductId: string) => {
     setLoadingCompetitors(true);
     try {
-      console.log('=== INICIANDO CARREGAMENTO DE CONCORRENTES ===');
-      console.log('Fazendo requisição para:', `http://localhost:8000/api/mercado-livre/catalog-competitors/${catalogProductId}`);
+      console.log('=== INICIANDO CARREGAMENTO DE CONCORRENTES DO BANCO ===');
+      console.log('Fazendo requisição para:', `http://localhost:8000/api/mercado-livre/catalog-competitors/db/${catalogProductId}`);
       
-      const competitors = await mercadoLivreApi.getCatalogCompetitors(catalogProductId);
-      console.log('Concorrentes carregados:', competitors);
-      setCatalogCompetitors(competitors);
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('auth_token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/mercado-livre/catalog-competitors/db/${catalogProductId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const competitors = await response.json();
+        console.log('Concorrentes carregados do banco:', competitors);
+        setCatalogCompetitors(competitors);
+      } else {
+        const errorData = await response.json();
+        console.error('Erro ao carregar concorrentes:', errorData);
+        setCatalogCompetitors([]);
+      }
     } catch (error: any) {
       console.error('=== ERRO AO CARREGAR CONCORRENTES ===');
-      console.error('Status:', error.response?.status);
       console.error('Erro:', error.message);
       setCatalogCompetitors([]);
     } finally {
@@ -218,6 +240,7 @@ const ProductDetailsPage: React.FC = () => {
     setLoadingCompetitors(true);
     try {
       await mercadoLivreApi.syncCatalogCompetitors(catalogProductId);
+      // Após sincronizar, carregar do banco de dados
       await loadCatalogCompetitors(catalogProductId);
     } catch (error: any) {
       console.error('Erro ao sincronizar concorrentes:', error);
@@ -1219,26 +1242,95 @@ const ProductDetailsPage: React.FC = () => {
                         </div>
                       )}
 
+                      {/* Recomendações */}
+                      {catalogCompetitors.length > 0 && (
+                        <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
+                          <h4 className="font-semibold text-green-800 mb-3">💡 Recomendações</h4>
+                          <div className="space-y-3">
+                            {/* Análise de Preço Competitivo */}
+                            {(() => {
+                              const minCompetitorPrice = Math.min(...catalogCompetitors.map(c => c.price || 0));
+                              const maxCompetitorPrice = Math.max(...catalogCompetitors.map(c => c.price || 0));
+                              const avgCompetitorPrice = catalogCompetitors.reduce((sum, c) => sum + (c.price || 0), 0) / catalogCompetitors.length;
+                              const currentPrice = product.price;
+                              
+                              let recommendation = '';
+                              let recommendationType = 'info';
+                              
+                              if (currentPrice < minCompetitorPrice) {
+                                recommendation = `Preço competitivo: Seu preço (R$ ${currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está abaixo do menor preço dos concorrentes (R$ ${minCompetitorPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`;
+                                recommendationType = 'success';
+                              } else if (currentPrice > maxCompetitorPrice) {
+                                recommendation = `Preço alto: Seu preço (R$ ${currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está acima do maior preço dos concorrentes (R$ ${maxCompetitorPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`;
+                                recommendationType = 'warning';
+                              } else if (currentPrice > avgCompetitorPrice) {
+                                recommendation = `Preço acima da média: Seu preço (R$ ${currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está acima da média dos concorrentes (R$ ${avgCompetitorPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`;
+                                recommendationType = 'warning';
+                              } else {
+                                recommendation = `Preço competitivo: Seu preço (R$ ${currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está dentro da faixa competitiva dos concorrentes.`;
+                                recommendationType = 'success';
+                              }
+                              
+                              return (
+                                <div className={`p-3 rounded-lg ${
+                                  recommendationType === 'success' ? 'bg-green-100 border border-green-200' :
+                                  recommendationType === 'warning' ? 'bg-yellow-100 border border-yellow-200' :
+                                  'bg-blue-100 border border-blue-200'
+                                }`}>
+                                  <p className={`text-sm ${
+                                    recommendationType === 'success' ? 'text-green-800' :
+                                    recommendationType === 'warning' ? 'text-yellow-800' :
+                                    'text-blue-800'
+                                  }`}>
+                                    {recommendation}
+                                  </p>
+                                </div>
+                              );
+                            })()}
+                            
+                            {/* Recomendação de Frete */}
+                            {(() => {
+                              const freeShippingCount = catalogCompetitors.filter(c => c.shipping?.free_shipping === true).length;
+                              const totalCompetitors = catalogCompetitors.length;
+                              const freeShippingPercentage = (freeShippingCount / totalCompetitors) * 100;
+                              
+                              if (freeShippingPercentage > 50) {
+                                return (
+                                  <div className="p-3 rounded-lg bg-blue-100 border border-blue-200">
+                                    <p className="text-sm text-blue-800">
+                                      💡 Considere oferecer frete grátis: {freeShippingPercentage.toFixed(0)}% dos concorrentes oferecem frete grátis.
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                            
+                            {/* Recomendação de Medalhas */}
+                            {(() => {
+                              const goldSellers = catalogCompetitors.filter(c => c.seller?.power_seller_status === 'gold').length;
+                              const silverSellers = catalogCompetitors.filter(c => c.seller?.power_seller_status === 'silver').length;
+                              const totalMedalSellers = goldSellers + silverSellers;
+                              
+                              if (totalMedalSellers > catalogCompetitors.length / 2) {
+                                return (
+                                  <div className="p-3 rounded-lg bg-yellow-100 border border-yellow-200">
+                                    <p className="text-sm text-yellow-800">
+                                      🏆 Competição acirrada: {totalMedalSellers} vendedores com medalhas (Gold/Silver) competem neste catálogo.
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Lista de Concorrentes */}
                       <div className="bg-white border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="font-semibold text-gray-800">🏪 Lista de Concorrentes no Catálogo</h4>
-                          <Button
-                            onClick={() => {
-                              if (product.catalog_product_id) {
-                                loadCatalogCompetitors(product.catalog_product_id);
-                              }
-                            }}
-                            disabled={loadingCompetitors}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {loadingCompetitors ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-4 w-4" />
-                            )}
-                          </Button>
                         </div>
                         
                         {loadingCompetitors ? (
@@ -1353,7 +1445,7 @@ const ProductDetailsPage: React.FC = () => {
                           <div className="text-center py-8 text-gray-500">
                             <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                             <p>Nenhum concorrente encontrado</p>
-                            <p className="text-sm">Clique em "Atualizar" para buscar concorrentes</p>
+                            <p className="text-sm">Clique em "Atualizar" para sincronizar e carregar concorrentes</p>
                           </div>
                         )}
                       </div>

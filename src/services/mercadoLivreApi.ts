@@ -206,7 +206,7 @@ class MercadoLivreApiService {
 
   // Método para sincronizar concorrentes do catálogo
   async syncCatalogCompetitors(catalogProductId: string): Promise<any> {
-    return this.request(`/api/mercado-livre/catalog-competitors/${catalogProductId}/sync`, {
+    return this.request(`/api/mercado-livre/catalog-competitors/sync/${catalogProductId}`, {
       method: 'POST',
     });
   }

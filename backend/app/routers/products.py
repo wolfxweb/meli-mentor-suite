@@ -1008,6 +1008,52 @@ async def get_catalog_competitors(
 ):
     """Obtém lista de concorrentes no catálogo para um produto específico."""
     try:
+        # Primeiro, tentar buscar do banco de dados
+        competitors_from_db = db.query(CatalogCompetitor).filter(
+            CatalogCompetitor.catalog_product_id == product_id
+        ).order_by(CatalogCompetitor.price.asc()).all()
+        
+        if competitors_from_db:
+            # Converter para formato compatível com o frontend
+            result = []
+            for comp in competitors_from_db:
+                competitor_data = {
+                    "item_id": comp.item_id,
+                    "title": comp.title,
+                    "price": float(comp.price),
+                    "original_price": float(comp.original_price) if comp.original_price else None,
+                    "condition": comp.condition,
+                    "available_quantity": comp.available_quantity,
+                    "sold_quantity": comp.sold_quantity,
+                    "url": comp.url,
+                    "manual_url": comp.manual_url,
+                    "seller": {
+                        "seller_id": comp.seller_id,
+                        "nickname": comp.seller_nickname,
+                        "reputation_level_id": comp.seller_reputation_level,
+                        "power_seller_status": comp.seller_power_status,
+                        "transactions": {
+                            "total": comp.seller_transactions_total
+                        }
+                    },
+                    "shipping": {
+                        "mode": comp.shipping_mode,
+                        "logistic_type": comp.shipping_logistic_type,
+                        "free_shipping": comp.shipping_free,
+                        "tags": comp.shipping_tags or []
+                    },
+                    "listing_type_id": comp.listing_type_id,
+                    "tags": comp.tags or [],
+                    "deal_ids": comp.deal_ids or []
+                }
+                result.append(competitor_data)
+            
+            logger.info(f"Retornando {len(result)} concorrentes do banco de dados para produto {product_id}")
+            return result
+        
+        # Se não há dados no banco, buscar da API
+        logger.info(f"Nenhum concorrente encontrado no banco para produto {product_id}, buscando da API")
+        
         # Obter token válido
         valid_token = mercado_livre_service.get_valid_token(db, current_user.company_id)
         

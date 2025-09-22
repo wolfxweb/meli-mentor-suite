@@ -611,16 +611,15 @@ export const ProductsPage = () => {
     }
   };
 
-  const loadCatalogCompetitors = async (productId: string, fromDb: boolean = false) => {
+  const loadCatalogCompetitors = async (productId: string, fromDb: boolean = true) => {
     console.log('loadCatalogCompetitors chamada com:', { productId, fromDb });
     setLoadingCompetitors(true);
     try {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const token = localStorage.getItem('auth_token');
       
-      const endpoint = fromDb 
-        ? `${API_BASE_URL}/api/mercado-livre/catalog-competitors/db/${productId}`
-        : `${API_BASE_URL}/api/mercado-livre/catalog-competitors/${productId}`;
+      // Sempre carregar do banco de dados
+      const endpoint = `${API_BASE_URL}/api/mercado-livre/catalog-competitors/db/${productId}`;
       
       console.log('Fazendo requisição para:', endpoint);
       
@@ -633,7 +632,7 @@ export const ProductsPage = () => {
 
       if (response.ok) {
         const competitors = await response.json();
-        console.log('=== CONCORRENTES CARREGADOS ===');
+        console.log('=== CONCORRENTES CARREGADOS DO BANCO ===');
         console.log('Quantidade:', competitors.length);
         console.log('Dados:', competitors);
         setCatalogCompetitors(competitors);
@@ -683,8 +682,8 @@ export const ProductsPage = () => {
                         // Recarregar concorrentes do banco
                         console.log('=== RECARREGANDO CONCORRENTES DO BANCO ===');
                         console.log('Produto ID:', productId);
-                        console.log('Chamando loadCatalogCompetitors com fromDb=true');
-                        await loadCatalogCompetitors(productId, true);
+                        console.log('Chamando loadCatalogCompetitors do banco');
+                        await loadCatalogCompetitors(productId);
       } else {
         const errorData = await response.json();
         console.error('=== ERRO AO SINCRONIZAR ===');
@@ -2653,26 +2652,140 @@ export const ProductsPage = () => {
                       </div>
                     )}
 
+                    {/* Recomendações */}
+                    {catalogCompetitors.length > 0 && (
+                      <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
+                        <h4 className="font-semibold text-green-800 mb-3">💡 Recomendações</h4>
+                        <div className="space-y-3">
+                          {/* Análise de Preço Competitivo */}
+                          {(() => {
+                            const minCompetitorPrice = Math.min(...catalogCompetitors.map(c => c.price || 0));
+                            const maxCompetitorPrice = Math.max(...catalogCompetitors.map(c => c.price || 0));
+                            const avgCompetitorPrice = catalogCompetitors.reduce((sum, c) => sum + (c.price || 0), 0) / catalogCompetitors.length;
+                            const currentPrice = selectedProduct.price;
+                            
+                            let recommendation = '';
+                            let recommendationType = 'info';
+                            
+                            if (currentPrice < minCompetitorPrice) {
+                              recommendation = `Preço competitivo: Seu preço (R$ ${currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está abaixo do menor preço dos concorrentes (R$ ${minCompetitorPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`;
+                              recommendationType = 'success';
+                            } else if (currentPrice > maxCompetitorPrice) {
+                              recommendation = `Preço alto: Seu preço (R$ ${currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está acima do maior preço dos concorrentes (R$ ${maxCompetitorPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`;
+                              recommendationType = 'warning';
+                            } else if (currentPrice > avgCompetitorPrice) {
+                              recommendation = `Preço acima da média: Seu preço (R$ ${currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está acima da média dos concorrentes (R$ ${avgCompetitorPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`;
+                              recommendationType = 'warning';
+                            } else {
+                              recommendation = `Preço competitivo: Seu preço (R$ ${currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está dentro da faixa competitiva dos concorrentes.`;
+                              recommendationType = 'success';
+                            }
+                            
+                            return (
+                              <div className={`p-3 rounded-lg ${
+                                recommendationType === 'success' ? 'bg-green-100 border border-green-200' :
+                                recommendationType === 'warning' ? 'bg-yellow-100 border border-yellow-200' :
+                                'bg-blue-100 border border-blue-200'
+                              }`}>
+                                <p className={`text-sm ${
+                                  recommendationType === 'success' ? 'text-green-800' :
+                                  recommendationType === 'warning' ? 'text-yellow-800' :
+                                  'text-blue-800'
+                                }`}>
+                                  {recommendation}
+                                </p>
+                              </div>
+                            );
+                          })()}
+                          
+                          {/* Recomendação de Frete */}
+                          {(() => {
+                            const freeShippingCount = catalogCompetitors.filter(c => c.shipping?.free_shipping === true).length;
+                            const totalCompetitors = catalogCompetitors.length;
+                            const freeShippingPercentage = (freeShippingCount / totalCompetitors) * 100;
+                            
+                            if (freeShippingPercentage > 50) {
+                              return (
+                                <div className="p-3 rounded-lg bg-blue-100 border border-blue-200">
+                                  <p className="text-sm text-blue-800">
+                                    💡 Considere oferecer frete grátis: {freeShippingPercentage.toFixed(0)}% dos concorrentes oferecem frete grátis.
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          
+                          {/* Recomendação de Medalhas */}
+                          {(() => {
+                            const goldSellers = catalogCompetitors.filter(c => c.seller?.power_seller_status === 'gold').length;
+                            const silverSellers = catalogCompetitors.filter(c => c.seller?.power_seller_status === 'silver').length;
+                            const totalMedalSellers = goldSellers + silverSellers;
+                            
+                            if (totalMedalSellers > catalogCompetitors.length / 2) {
+                              return (
+                                <div className="p-3 rounded-lg bg-yellow-100 border border-yellow-200">
+                                  <p className="text-sm text-yellow-800">
+                                    🏆 Competição acirrada: {totalMedalSellers} vendedores com medalhas (Gold/Silver) competem neste catálogo.
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          
+                          {/* Recomendação do Mercado Livre Full */}
+                          {!hasFullSales(selectedProduct) && (
+                            <div className="p-3 rounded-lg bg-orange-100 border border-orange-200">
+                              <p className="text-sm text-orange-800">
+                                🚀 Ative o Mercado Livre Full: Produtos com Full têm maior visibilidade e chances de venda.
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Recomendação de Visibilidade */}
+                          {selectedProduct.catalog_visit_share === 'minimum' && (
+                            <div className="p-3 rounded-lg bg-red-100 border border-red-200">
+                              <p className="text-sm text-red-800">
+                                👁️ Baixa visibilidade: Melhore suas condições de venda para aumentar a visibilidade no catálogo.
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Status de Ganhando */}
+                          {getCatalogPosition(selectedProduct).status === 'winning' && (
+                            <div className="p-3 rounded-lg bg-green-100 border border-green-200">
+                              <p className="text-sm text-green-800">
+                                🎉 Parabéns! Seu produto está ganhando no catálogo. Continue mantendo as condições competitivas.
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Competição Acirrada */}
+                          {selectedProduct.catalog_competitors_sharing && selectedProduct.catalog_competitors_sharing > 0 && (
+                            <div className="p-3 rounded-lg bg-yellow-100 border border-yellow-200">
+                              <p className="text-sm text-yellow-800">
+                                ⚔️ Competição acirrada: Há {selectedProduct.catalog_competitors_sharing} concorrente(s) compartilhando o primeiro lugar. Monitore preços e condições para manter sua posição.
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Compartilhando Primeiro Lugar */}
+                          {getCatalogPosition(selectedProduct).status === 'sharing_first_place' && (
+                            <div className="p-3 rounded-lg bg-blue-100 border border-blue-200">
+                              <p className="text-sm text-blue-800">
+                                🤝 Compartilhando o primeiro lugar: Você está dividindo a liderança com outros vendedores. Considere melhorar preço ou condições para ser o único ganhador.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Lista de Concorrentes */}
                     <div className="bg-white border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-4">
                         <h4 className="font-semibold text-gray-800">🏪 Lista de Concorrentes no Catálogo</h4>
-                        <Button
-                          onClick={() => {
-                            if (selectedProduct.catalog_product_id) {
-                              loadCatalogCompetitors(selectedProduct.catalog_product_id);
-                            }
-                          }}
-                          disabled={loadingCompetitors}
-                          size="sm"
-                          variant="outline"
-                        >
-                          {loadingCompetitors ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                        </Button>
                       </div>
                       
                       {loadingCompetitors ? (
@@ -2846,7 +2959,7 @@ export const ProductsPage = () => {
                         <div className="text-center py-8 text-gray-500">
                           <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                           <p>Nenhum concorrente encontrado</p>
-                          <p className="text-sm">Clique em "Atualizar" para buscar concorrentes</p>
+                          <p className="text-sm">Clique em "Atualizar" para sincronizar e carregar concorrentes</p>
                         </div>
                       )}
                     </div>
@@ -2877,94 +2990,6 @@ export const ProductsPage = () => {
               </Card>
 
 
-              {/* Recomendações */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">💡 Recomendações</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {getCatalogPosition(selectedProduct).status === 'competing' && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Melhore seu preço:</strong> Considere reduzir o preço para R$ {selectedProduct.catalog_price_to_win?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} para vencer a competição.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {catalogCompetitors.length > 0 && (
-                      <>
-                        {selectedProduct.price > Math.min(...catalogCompetitors.map(c => c.price || 0)) && (
-                          <Alert>
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription>
-                              <strong>Preço acima da concorrência:</strong> Seu preço (R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está acima do menor preço dos concorrentes (R$ {Math.min(...catalogCompetitors.map(c => c.price || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                        {selectedProduct.price < Math.min(...catalogCompetitors.map(c => c.price || 0)) && (
-                          <Alert>
-                            <CheckCircle className="h-4 w-4" />
-                            <AlertDescription>
-                              <strong>Preço competitivo:</strong> Seu preço (R$ {selectedProduct.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) está abaixo do menor preço dos concorrentes (R$ {Math.min(...catalogCompetitors.map(c => c.price || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                        {selectedProduct.price > (catalogCompetitors.reduce((sum, c) => sum + (c.price || 0), 0) / catalogCompetitors.length) && (
-                          <Alert>
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription>
-                              <strong>Preço acima da média:</strong> Seu preço está acima da média dos concorrentes (R$ {(catalogCompetitors.reduce((sum, c) => sum + (c.price || 0), 0) / catalogCompetitors.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                      </>
-                    )}
-                    {!hasFullSales(selectedProduct) && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Ative o Mercado Livre Full:</strong> Produtos com Full têm maior visibilidade e chances de venda.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {selectedProduct.catalog_visit_share === 'minimum' && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Baixa visibilidade:</strong> Melhore suas condições de venda para aumentar a visibilidade no catálogo.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {getCatalogPosition(selectedProduct).status === 'winning' && (
-                      <Alert>
-                        <CheckCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Parabéns!</strong> Seu produto está ganhando no catálogo. Continue mantendo as condições competitivas.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {selectedProduct.catalog_competitors_sharing && selectedProduct.catalog_competitors_sharing > 0 && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Competição acirrada:</strong> Há {selectedProduct.catalog_competitors_sharing} concorrente(s) compartilhando o primeiro lugar. 
-                          Monitore preços e condições para manter sua posição.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {getCatalogPosition(selectedProduct).status === 'sharing_first_place' && (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Compartilhando o primeiro lugar:</strong> Você está dividindo a liderança com outros vendedores. 
-                          Considere melhorar preço ou condições para ser o único ganhador.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
             </CardContent>
             <div className="flex justify-end p-6 pt-0">
               <Button variant="outline" onClick={() => {

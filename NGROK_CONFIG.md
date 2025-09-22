@@ -5,8 +5,8 @@ O ngrok expõe seu servidor local (localhost:8000) para a internet, permitindo q
 
 ## 🔄 **Quando o endereço muda**
 Sempre que você reiniciar o ngrok, o endereço público muda. Exemplo:
-- **Antes**: `https://95e3e8757a41.ngrok-free.app`
-- **Depois**: `https://abc123def456.ngrok-free.app`
+- **Antes**: `https://9e22d3eedf0c.ngrok-free.app`
+- **Depois**: `https://a7123785c466.ngrok-free.app`
 
 ## 📝 **Onde alterar o endereço**
 
@@ -65,7 +65,7 @@ grep -r "ngrok" .
 
 ### Buscar endereço específico:
 ```bash
-grep -r "95e3e8757a41.ngrok-free.app" .
+grep -r "a7123785c466.ngrok-free.app" .
 ```
 
 ## ⚠️ **Importante**
@@ -101,4 +101,4 @@ Acesse: `https://SEU_ENDERECO.ngrok-free.app/api/mercado-livre/auth/callback`
 
 ---
 **Última atualização**: $(date)
-**Endereço atual**: Verificar no terminal do ngrok
+**Endereço atual**: https://a7123785c466.ngrok-free.app
