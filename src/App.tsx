@@ -15,6 +15,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { AccountPage } from "@/pages/AccountPage";
 import { ProductsPage } from "@/pages/ProductsPage";
 import ProductDetailsPage from "@/pages/ProductDetailsPage";
+import OrdersPage from "@/pages/OrdersPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
               <Route path="account" element={<AccountPage />} />
               <Route path="products" element={<ProductsPage />} />
               <Route path="products/:id" element={<ProductDetailsPage />} />
+              <Route path="orders" element={<OrdersPage />} />
               
               {/* Placeholder routes - will be implemented */}
               <Route path="financial" element={<div className="p-6"><h1 className="text-2xl font-bold">Financeiro - Em Desenvolvimento</h1></div>} />

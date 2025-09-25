@@ -229,6 +229,60 @@ class MercadoLivreApiService {
   async getProductAdsFromDb(itemId: string, periodDays: number = 15): Promise<any> {
     return this.request(`/api/mercado-livre/product-ads/db/${itemId}?period_days=${periodDays}`);
   }
+
+  // ==================== MÉTODOS PARA PEDIDOS ====================
+
+  async searchOrders(params: {
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<any> {
+    const queryParams = new URLSearchParams();
+    
+    if (params.status) queryParams.append('status', params.status);
+    if (params.date_from) queryParams.append('date_from', params.date_from);
+    if (params.date_to) queryParams.append('date_to', params.date_to);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const url = `/api/mercado-livre/orders/search${queryString ? `?${queryString}` : ''}`;
+    
+    return this.request(url);
+  }
+
+  async syncOrders(daysBack: number = 30): Promise<any> {
+    return this.request(`/api/mercado-livre/orders/sync?days_back=${daysBack}`, {
+      method: 'POST',
+    });
+  }
+
+  async getOrdersFromDb(params: {
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<any> {
+    const queryParams = new URLSearchParams();
+    
+    if (params.status) queryParams.append('status', params.status);
+    if (params.date_from) queryParams.append('date_from', params.date_from);
+    if (params.date_to) queryParams.append('date_to', params.date_to);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const url = `/api/mercado-livre/orders/db${queryString ? `?${queryString}` : ''}`;
+    
+    return this.request(url);
+  }
+
+  async getOrderById(orderId: string): Promise<any> {
+    return this.request(`/api/mercado-livre/orders/${orderId}`);
+  }
 }
 
 export const mercadoLivreApi = new MercadoLivreApiService(API_BASE_URL);

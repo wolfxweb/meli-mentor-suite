@@ -331,3 +331,189 @@ class ProductAdsData(Base):
     
     # Relationships
     company = relationship("Company")
+
+
+class MercadoLivreOrder(Base):
+    __tablename__ = "mercado_livre_orders"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    
+    # ==================== INFORMAÇÕES BÁSICAS DO PEDIDO ====================
+    order_id = Column(String(50), nullable=False, index=True)  # ID do pedido no ML
+    status = Column(String(50), nullable=False)  # paid, confirmed, cancelled, etc.
+    status_detail = Column(String(100), nullable=True)
+    
+    # Datas importantes
+    date_created = Column(DateTime, nullable=False)
+    date_closed = Column(DateTime, nullable=True)
+    date_last_updated = Column(DateTime, nullable=True)
+    expiration_date = Column(DateTime, nullable=True)
+    manufacturing_ending_date = Column(DateTime, nullable=True)
+    
+    # Informações financeiras
+    total_amount = Column(Numeric(12, 2), nullable=False)
+    paid_amount = Column(Numeric(12, 2), nullable=True)
+    currency_id = Column(String(10), nullable=False, default="BRL")
+    
+    # Informações adicionais do pedido
+    comment = Column(Text, nullable=True)
+    pack_id = Column(String(50), nullable=True)
+    pickup_id = Column(String(50), nullable=True)
+    fulfilled = Column(Boolean, nullable=True)
+    
+    # ==================== INFORMAÇÕES DO COMPRADOR ====================
+    buyer_id = Column(String(50), nullable=False)
+    buyer_nickname = Column(String(255), nullable=True)
+    buyer_email = Column(String(255), nullable=True)
+    buyer_first_name = Column(String(255), nullable=True)
+    buyer_last_name = Column(String(255), nullable=True)
+    buyer_phone = Column(String(50), nullable=True)
+    buyer_alternative_phone = Column(String(50), nullable=True)
+    buyer_registration_date = Column(DateTime, nullable=True)
+    buyer_user_type = Column(String(50), nullable=True)
+    buyer_country_id = Column(String(10), nullable=True)
+    buyer_site_id = Column(String(10), nullable=True)
+    buyer_permalink = Column(String(500), nullable=True)
+    
+    # Endereço do comprador
+    buyer_address_state = Column(String(100), nullable=True)
+    buyer_address_city = Column(String(100), nullable=True)
+    buyer_address_address = Column(String(500), nullable=True)
+    buyer_address_zip_code = Column(String(20), nullable=True)
+    
+    # Identificação do comprador
+    buyer_identification_type = Column(String(50), nullable=True)
+    buyer_identification_number = Column(String(100), nullable=True)
+    
+    # ==================== INFORMAÇÕES DO VENDEDOR ====================
+    seller_id = Column(String(50), nullable=False)
+    seller_nickname = Column(String(255), nullable=True)
+    seller_email = Column(String(255), nullable=True)
+    seller_first_name = Column(String(255), nullable=True)
+    seller_last_name = Column(String(255), nullable=True)
+    seller_phone = Column(String(50), nullable=True)
+    seller_alternative_phone = Column(String(50), nullable=True)
+    seller_registration_date = Column(DateTime, nullable=True)
+    seller_user_type = Column(String(50), nullable=True)
+    seller_country_id = Column(String(10), nullable=True)
+    seller_site_id = Column(String(10), nullable=True)
+    seller_permalink = Column(String(500), nullable=True)
+    
+    # Endereço do vendedor
+    seller_address_state = Column(String(100), nullable=True)
+    seller_address_city = Column(String(100), nullable=True)
+    seller_address_address = Column(String(500), nullable=True)
+    seller_address_zip_code = Column(String(20), nullable=True)
+    
+    # Identificação do vendedor
+    seller_identification_type = Column(String(50), nullable=True)
+    seller_identification_number = Column(String(100), nullable=True)
+    
+    # ==================== INFORMAÇÕES DE ENVIO ====================
+    shipping_id = Column(String(50), nullable=True)
+    shipping_status = Column(String(50), nullable=True)
+    shipping_substatus = Column(String(50), nullable=True)
+    shipping_cost = Column(Numeric(12, 2), nullable=True)
+    shipping_tracking_number = Column(String(100), nullable=True)
+    shipping_tracking_method = Column(String(50), nullable=True)
+    shipping_declared_value = Column(Numeric(12, 2), nullable=True)
+    
+    # Endereço de origem do envio
+    shipping_origin_state = Column(String(100), nullable=True)
+    shipping_origin_city = Column(String(100), nullable=True)
+    shipping_origin_address = Column(String(500), nullable=True)
+    shipping_origin_zip_code = Column(String(20), nullable=True)
+    
+    # Endereço de destino do envio
+    shipping_destination_state = Column(String(100), nullable=True)
+    shipping_destination_city = Column(String(100), nullable=True)
+    shipping_destination_address = Column(String(500), nullable=True)
+    shipping_destination_zip_code = Column(String(20), nullable=True)
+    shipping_destination_receiver_name = Column(String(255), nullable=True)
+    shipping_destination_receiver_phone = Column(String(50), nullable=True)
+    
+    # Dimensões do envio
+    shipping_dimensions_height = Column(Numeric(8, 2), nullable=True)
+    shipping_dimensions_width = Column(Numeric(8, 2), nullable=True)
+    shipping_dimensions_length = Column(Numeric(8, 2), nullable=True)
+    shipping_dimensions_weight = Column(Numeric(8, 2), nullable=True)
+    
+    # ==================== INFORMAÇÕES DE PAGAMENTO ====================
+    payment_method_id = Column(String(50), nullable=True)
+    payment_type = Column(String(50), nullable=True)
+    payment_status = Column(String(50), nullable=True)
+    payment_installments = Column(Integer, nullable=True)
+    payment_operation_type = Column(String(50), nullable=True)
+    payment_status_code = Column(String(50), nullable=True)
+    payment_status_detail = Column(String(100), nullable=True)
+    payment_transaction_amount = Column(Numeric(12, 2), nullable=True)
+    payment_transaction_amount_refunded = Column(Numeric(12, 2), nullable=True)
+    payment_taxes_amount = Column(Numeric(12, 2), nullable=True)
+    payment_coupon_amount = Column(Numeric(12, 2), nullable=True)
+    payment_overpaid_amount = Column(Numeric(12, 2), nullable=True)
+    payment_installment_amount = Column(Numeric(12, 2), nullable=True)
+    payment_authorization_code = Column(String(100), nullable=True)
+    payment_transaction_order_id = Column(String(100), nullable=True)
+    payment_date_approved = Column(DateTime, nullable=True)
+    payment_date_last_modified = Column(DateTime, nullable=True)
+    payment_collector_id = Column(String(50), nullable=True)
+    payment_card_id = Column(String(50), nullable=True)
+    payment_issuer_id = Column(String(50), nullable=True)
+    
+    # ==================== FEEDBACK ====================
+    feedback_sale_id = Column(String(50), nullable=True)
+    feedback_sale_rating = Column(String(20), nullable=True)  # positive, negative, neutral
+    feedback_sale_fulfilled = Column(Boolean, nullable=True)
+    feedback_purchase_id = Column(String(50), nullable=True)
+    feedback_purchase_rating = Column(String(20), nullable=True)
+    feedback_purchase_fulfilled = Column(Boolean, nullable=True)
+    
+    # ==================== INFORMAÇÕES ADICIONAIS ====================
+    # Tags do pedido
+    tags = Column(JSON, nullable=True)  # Array de tags como ["paid", "delivered", etc.]
+    
+    # Informações dos itens do pedido
+    order_items = Column(JSON, nullable=True)  # Array com detalhes dos itens
+    payments = Column(JSON, nullable=True)  # Array com detalhes dos pagamentos
+    
+    # Informações de contexto
+    context_channel = Column(String(50), nullable=True)  # marketplace, mshops, etc.
+    context_site = Column(String(10), nullable=True)  # MLB, MLA, etc.
+    context_flows = Column(JSON, nullable=True)  # Array de flows
+    
+    # Informações de cupom
+    coupon_id = Column(String(50), nullable=True)
+    coupon_amount = Column(Numeric(12, 2), nullable=True)
+    
+    # Informações de impostos
+    taxes_amount = Column(Numeric(12, 2), nullable=True)
+    taxes_currency_id = Column(String(10), nullable=True)
+    taxes_id = Column(String(50), nullable=True)
+    
+    # Informações de cancelamento
+    cancel_detail_group = Column(String(50), nullable=True)
+    cancel_detail_code = Column(String(50), nullable=True)
+    cancel_detail_description = Column(String(500), nullable=True)
+    cancel_detail_requested_by = Column(String(50), nullable=True)
+    cancel_detail_date = Column(DateTime, nullable=True)
+    cancel_detail_application_id = Column(String(50), nullable=True)
+    
+    # Informações de mediação
+    mediations = Column(JSON, nullable=True)  # Array de mediações
+    
+    # Informações de solicitação de pedido
+    order_request_return = Column(JSON, nullable=True)
+    order_request_change = Column(JSON, nullable=True)
+    
+    # Dados completos em JSON para flexibilidade
+    full_data = Column(JSON, nullable=True)  # Dados completos da API
+    
+    # Timestamps
+    ml_date_created = Column(DateTime, nullable=True)
+    ml_last_updated = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    company = relationship("Company")

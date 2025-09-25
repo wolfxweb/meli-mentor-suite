@@ -31,7 +31,7 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
       MERCADO_LIVRE_CLIENT_ID: 6987936494418444
       MERCADO_LIVRE_CLIENT_SECRET: puvG9Z7XBgICZg5yK3t0PAXAmnco18Tl
-      MERCADO_LIVRE_REDIRECT_URI: https://a7123785c466.ngrok-free.app/api/mercado-livre/auth/callback
+      MERCADO_LIVRE_REDIRECT_URI: https://b655661787e6.ngrok-free.app/api/mercado-livre/auth/callback
     ports:
       - "8000:8000"
     depends_on:

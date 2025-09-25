@@ -34,11 +34,13 @@ import {
   Settings,
   LogOut,
   ChevronDown,
+  ShoppingCart,
 } from "lucide-react";
 
 const navigationItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Anúncios", url: "/products", icon: Package },
+  { title: "Pedidos", url: "/orders", icon: ShoppingCart },
   { title: "Financeiro", url: "/financial", icon: DollarSign },
   { title: "Previsões", url: "/forecasts", icon: TrendingUp },
   { title: "Contas", url: "/accounts", icon: Calendar },

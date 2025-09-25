@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import MercadoLivreIntegration, ProductAdsData
+from app.models import MercadoLivreIntegration, ProductAdsData, MercadoLivreOrder
 from app.schemas import MercadoLivreIntegration as MercadoLivreIntegrationSchema, OAuth2AuthorizationRequest
 from app.auth import get_current_user
 from app.services.mercado_livre import mercado_livre_service
@@ -1162,3 +1162,573 @@ async def get_product_ads_from_db(
             detail="Erro interno ao buscar dados de publicidade"
         )
 
+# ==================== ENDPOINTS PARA PEDIDOS ====================
+
+@router.get("/orders/search")
+async def search_orders(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    status: Optional[str] = Query(None, description="Status do pedido (paid, confirmed, cancelled, etc.)"),
+    date_from: Optional[str] = Query(None, description="Data de início (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Data de fim (YYYY-MM-DD)"),
+    limit: int = Query(50, description="Número máximo de pedidos por página"),
+    offset: int = Query(0, description="Número de pedidos para pular")
+):
+    """Busca pedidos do Mercado Livre via API e retorna os resultados."""
+    try:
+        logger.info(f"=== BUSCANDO PEDIDOS PARA EMPRESA {current_user.company_id} ===")
+        
+        integration = db.query(MercadoLivreIntegration).filter(
+            MercadoLivreIntegration.company_id == current_user.company_id,
+            MercadoLivreIntegration.is_active == True
+        ).first()
+
+        if not integration:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Integração com Mercado Livre não encontrada ou inativa para esta empresa."
+            )
+
+        # Verificar se o token precisa ser renovado
+        if integration.expires_at and integration.expires_at <= datetime.utcnow():
+            try:
+                new_token_data = await mercado_livre_service.refresh_access_token(integration.refresh_token)
+                integration.access_token = new_token_data.access_token
+                integration.refresh_token = new_token_data.refresh_token
+                integration.expires_at = datetime.utcnow() + timedelta(seconds=new_token_data.expires_in)
+                db.commit()
+                logger.info("Token renovado com sucesso")
+            except Exception as e:
+                logger.error(f"Erro ao renovar token: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Erro ao renovar token de acesso"
+                )
+        
+        valid_token = integration.access_token
+        if not valid_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Erro ao renovar token de acesso"
+            )
+        
+        # Construir parâmetros da busca
+        params = {
+            "seller": integration.user_id,
+            "limit": limit,
+            "offset": offset
+        }
+        
+        if status:
+            params["order.status"] = status
+        if date_from:
+            params["order.date_created.from"] = f"{date_from}T00:00:00.000-03:00"
+        if date_to:
+            params["order.date_created.to"] = f"{date_to}T23:59:59.999-03:00"
+        
+        logger.info(f"Parâmetros da busca: {params}")
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.mercadolibre.com/orders/search",
+                params=params,
+                headers={
+                    "Authorization": f"Bearer {valid_token}",
+                    "Content-Type": "application/json"
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Erro na API do Mercado Livre: {response.status_code} - {response.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Erro na API do Mercado Livre: {response.text}"
+                )
+            
+            data = response.json()
+            logger.info(f"Pedidos encontrados: {data.get('paging', {}).get('total', 0)}")
+            
+            return {
+                "success": True,
+                "orders": data.get("results", []),
+                "paging": data.get("paging", {}),
+                "total": data.get("paging", {}).get("total", 0),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar pedidos: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao buscar pedidos"
+        )
+
+@router.post("/orders/sync")
+async def sync_orders(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    days_back: int = Query(30, description="Número de dias para buscar pedidos (padrão: 30)")
+):
+    """Sincroniza pedidos do Mercado Livre e salva no banco de dados."""
+    try:
+        logger.info(f"=== SINCRONIZANDO PEDIDOS PARA EMPRESA {current_user.company_id} ===")
+        
+        integration = db.query(MercadoLivreIntegration).filter(
+            MercadoLivreIntegration.company_id == current_user.company_id,
+            MercadoLivreIntegration.is_active == True
+        ).first()
+
+        if not integration:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Integração com Mercado Livre não encontrada ou inativa para esta empresa."
+            )
+
+        # Verificar se o token precisa ser renovado
+        if integration.expires_at and integration.expires_at <= datetime.utcnow():
+            try:
+                new_token_data = await mercado_livre_service.refresh_access_token(integration.refresh_token)
+                integration.access_token = new_token_data.access_token
+                integration.refresh_token = new_token_data.refresh_token
+                integration.expires_at = datetime.utcnow() + timedelta(seconds=new_token_data.expires_in)
+                db.commit()
+                logger.info("Token renovado com sucesso")
+            except Exception as e:
+                logger.error(f"Erro ao renovar token: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Erro ao renovar token de acesso"
+                )
+        
+        valid_token = integration.access_token
+        if not valid_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Erro ao renovar token de acesso"
+            )
+        
+        # Configuração para buscar TODOS os pedidos (sem filtro de data)
+        logger.info(f"Buscando TODOS os pedidos disponíveis (sem filtro de data)")
+        
+        params = {
+            "seller": integration.user_id,
+            "limit": 50,  # Limite máximo permitido pela API
+            "offset": 0
+        }
+        
+        sync_results = []
+        total_orders = 0
+        total_available = 0
+        
+        async with httpx.AsyncClient() as client:
+            # Paginação simples para buscar TODOS os pedidos
+            while True:
+                response = await client.get(
+                    "https://api.mercadolibre.com/orders/search",
+                    params=params,
+                    headers={
+                        "Authorization": f"Bearer {valid_token}",
+                        "Content-Type": "application/json"
+                    }
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"Erro na API do Mercado Livre: {response.status_code} - {response.text}")
+                    break
+                
+                data = response.json()
+                orders = data.get("results", [])
+                paging = data.get("paging", {})
+                
+                # Obter total disponível na primeira iteração
+                if total_available == 0:
+                    total_available = paging.get("total", 0)
+                    logger.info(f"Total de pedidos disponíveis: {total_available}")
+                
+                if not orders:
+                    break
+                
+                logger.info(f"Processando página {params['offset']//50 + 1} - {len(orders)} pedidos")
+                
+                # Processar cada pedido com dados completos
+                for order_data in orders:
+                    try:
+                        order_id = str(order_data.get("id"))
+                        
+                        # Verificar se o pedido já existe
+                        existing_order = db.query(MercadoLivreOrder).filter(
+                            MercadoLivreOrder.company_id == current_user.company_id,
+                            MercadoLivreOrder.order_id == order_id
+                        ).first()
+                        
+                        if existing_order:
+                            logger.info(f"Pedido {order_id} já existe - pulando")
+                            continue
+                        
+                        # Buscar detalhes completos do pedido
+                        try:
+                            order_detail_response = await client.get(
+                                f"https://api.mercadolibre.com/orders/{order_id}",
+                                headers={
+                                    "Authorization": f"Bearer {valid_token}",
+                                    "Content-Type": "application/json"
+                                }
+                            )
+                            
+                            if order_detail_response.status_code == 200:
+                                order_detail = order_detail_response.json()
+                                
+                                # Extrair dados completos do pedido
+                                buyer = order_detail.get("buyer", {})
+                                seller = order_detail.get("seller", {})
+                                shipping = order_detail.get("shipping", {})
+                                payments = order_detail.get("payments", [])
+                                
+                                # Criar pedido com dados completos
+                                order_record = MercadoLivreOrder(
+                                    company_id=current_user.company_id,
+                                    order_id=order_id,
+                                    status=order_detail.get("status", ""),
+                                    status_detail=order_detail.get("status_detail", {}).get("description") if order_detail.get("status_detail") else None,
+                                    date_created=datetime.fromisoformat(order_detail.get("date_created", "").replace("Z", "+00:00")),
+                                    date_closed=datetime.fromisoformat(order_detail.get("date_closed", "").replace("Z", "+00:00")) if order_detail.get("date_closed") else None,
+                                    date_last_updated=datetime.fromisoformat(order_detail.get("date_last_updated", "").replace("Z", "+00:00")) if order_detail.get("date_last_updated") else None,
+                                    total_amount=float(order_detail.get("total_amount", 0)),
+                                    paid_amount=float(order_detail.get("paid_amount", 0)) if order_detail.get("paid_amount") else None,
+                                    currency_id=order_detail.get("currency_id", "BRL"),
+                                    comment=order_detail.get("comment"),
+                                    pack_id=str(order_detail.get("pack_id")) if order_detail.get("pack_id") else None,
+                                    pickup_id=str(order_detail.get("pickup_id")) if order_detail.get("pickup_id") else None,
+                                    fulfilled=order_detail.get("fulfilled"),
+                                    
+                                    # Dados do comprador
+                                    buyer_id=str(buyer.get("id", "")),
+                                    buyer_nickname=buyer.get("nickname"),
+                                    buyer_email=buyer.get("email"),
+                                    buyer_first_name=buyer.get("first_name"),
+                                    buyer_last_name=buyer.get("last_name"),
+                                    buyer_phone=f"{buyer.get('phone', {}).get('area_code', '')}{buyer.get('phone', {}).get('number', '')}" if buyer.get("phone") else None,
+                                    buyer_alternative_phone=f"{buyer.get('alternative_phone', {}).get('area_code', '')}{buyer.get('alternative_phone', {}).get('number', '')}" if buyer.get("alternative_phone") else None,
+                                    buyer_registration_date=datetime.fromisoformat(buyer.get("registration_date", "").replace("Z", "+00:00")) if buyer.get("registration_date") else None,
+                                    buyer_user_type=buyer.get("user_type"),
+                                    buyer_country_id=buyer.get("country_id"),
+                                    buyer_site_id=buyer.get("site_id"),
+                                    buyer_permalink=buyer.get("permalink"),
+                                    buyer_address_state=buyer.get("address", {}).get("state"),
+                                    buyer_address_city=buyer.get("address", {}).get("city"),
+                                    buyer_address_address=buyer.get("address", {}).get("address"),
+                                    buyer_address_zip_code=buyer.get("address", {}).get("zip_code"),
+                                    buyer_identification_type=buyer.get("identification", {}).get("type"),
+                                    buyer_identification_number=buyer.get("identification", {}).get("number"),
+                                    
+                                    # Dados do vendedor
+                                    seller_id=str(seller.get("id", "")),
+                                    seller_nickname=seller.get("nickname"),
+                                    seller_email=seller.get("email"),
+                                    seller_first_name=seller.get("first_name"),
+                                    seller_last_name=seller.get("last_name"),
+                                    seller_phone=f"{seller.get('phone', {}).get('area_code', '')}{seller.get('phone', {}).get('number', '')}" if seller.get("phone") else None,
+                                    seller_alternative_phone=f"{seller.get('alternative_phone', {}).get('area_code', '')}{seller.get('alternative_phone', {}).get('number', '')}" if seller.get("alternative_phone") else None,
+                                    seller_registration_date=datetime.fromisoformat(seller.get("registration_date", "").replace("Z", "+00:00")) if seller.get("registration_date") else None,
+                                    seller_user_type=seller.get("user_type"),
+                                    seller_country_id=seller.get("country_id"),
+                                    seller_site_id=seller.get("site_id"),
+                                    seller_permalink=seller.get("permalink"),
+                                    seller_address_state=seller.get("address", {}).get("state"),
+                                    seller_address_city=seller.get("address", {}).get("city"),
+                                    seller_address_address=seller.get("address", {}).get("address"),
+                                    seller_address_zip_code=seller.get("address", {}).get("zip_code"),
+                                    seller_identification_type=seller.get("identification", {}).get("type"),
+                                    seller_identification_number=seller.get("identification", {}).get("number"),
+                                    
+                                    # Dados de envio
+                                    shipping_id=str(shipping.get("id")) if shipping.get("id") else None,
+                                    shipping_status=shipping.get("status"),
+                                    shipping_substatus=shipping.get("substatus"),
+                                    shipping_cost=float(shipping.get("cost", 0)) if shipping.get("cost") else None,
+                                    shipping_tracking_number=shipping.get("tracking_number"),
+                                    shipping_tracking_method=shipping.get("tracking_method"),
+                                    shipping_declared_value=float(shipping.get("declared_value", 0)) if shipping.get("declared_value") else None,
+                                    
+                                    # Dados de pagamento (primeiro pagamento)
+                                    payment_method_id=payments[0].get("payment_method_id") if payments else None,
+                                    payment_type=payments[0].get("payment_type") if payments else None,
+                                    payment_status=payments[0].get("status") if payments else None,
+                                    payment_installments=payments[0].get("installments") if payments else None,
+                                    payment_operation_type=payments[0].get("operation_type") if payments else None,
+                                    payment_status_code=payments[0].get("status_code") if payments else None,
+                                    payment_status_detail=payments[0].get("status_detail") if payments else None,
+                                    payment_transaction_amount=float(payments[0].get("transaction_amount", 0)) if payments and payments[0].get("transaction_amount") else None,
+                                    payment_transaction_amount_refunded=float(payments[0].get("transaction_amount_refunded", 0)) if payments and payments[0].get("transaction_amount_refunded") else None,
+                                    payment_taxes_amount=float(payments[0].get("taxes_amount", 0)) if payments and payments[0].get("taxes_amount") else None,
+                                    payment_coupon_amount=float(payments[0].get("coupon_amount", 0)) if payments and payments[0].get("coupon_amount") else None,
+                                    payment_overpaid_amount=float(payments[0].get("overpaid_amount", 0)) if payments and payments[0].get("overpaid_amount") else None,
+                                    payment_installment_amount=float(payments[0].get("installment_amount", 0)) if payments and payments[0].get("installment_amount") else None,
+                                    payment_authorization_code=payments[0].get("authorization_code") if payments else None,
+                                    payment_transaction_order_id=payments[0].get("transaction_order_id") if payments else None,
+                                    payment_date_approved=datetime.fromisoformat(payments[0].get("date_approved", "").replace("Z", "+00:00")) if payments and payments[0].get("date_approved") else None,
+                                    payment_date_last_modified=datetime.fromisoformat(payments[0].get("date_last_modified", "").replace("Z", "+00:00")) if payments and payments[0].get("date_last_modified") else None,
+                                    payment_collector_id=str(payments[0].get("collector", {}).get("id")) if payments and payments[0].get("collector", {}).get("id") else None,
+                                    payment_card_id=str(payments[0].get("card_id")) if payments and payments[0].get("card_id") else None,
+                                    payment_issuer_id=payments[0].get("issuer_id") if payments else None,
+                                    
+                                    # Feedback
+                                    feedback_sale_rating=order_detail.get("feedback", {}).get("sale", {}).get("rating"),
+                                    feedback_sale_fulfilled=order_detail.get("feedback", {}).get("sale", {}).get("fulfilled"),
+                                    feedback_purchase_rating=order_detail.get("feedback", {}).get("purchase", {}).get("rating"),
+                                    feedback_purchase_fulfilled=order_detail.get("feedback", {}).get("purchase", {}).get("fulfilled"),
+                                    
+                                    # Tags e itens
+                                    tags=order_detail.get("tags", []),
+                                    order_items=order_detail.get("order_items", []),
+                                    
+                                    ml_date_created=datetime.utcnow(),
+                                    ml_last_updated=datetime.utcnow()
+                                )
+                                
+                                db.add(order_record)
+                                db.commit()
+                                total_orders += 1
+                                
+                                sync_results.append({
+                                    "order_id": order_id,
+                                    "action": "created",
+                                    "status": order_detail.get("status", ""),
+                                    "total_amount": float(order_detail.get("total_amount", 0))
+                                })
+                                
+                                logger.info(f"Pedido {order_id} criado com sucesso")
+                            else:
+                                logger.warning(f"Erro ao buscar detalhes do pedido {order_id}: {order_detail_response.status_code}")
+                                continue
+                                
+                        except Exception as e:
+                            logger.error(f"Erro ao buscar detalhes do pedido {order_id}: {e}")
+                            continue
+                        
+                    except Exception as e:
+                        logger.error(f"Erro ao processar pedido {order_data.get('id')}: {e}")
+                        continue
+                
+                # Verificar se há mais páginas
+                if paging.get("offset", 0) + paging.get("limit", 50) >= paging.get("total", 0):
+                    break
+                
+                # Atualizar offset para próxima página
+                params["offset"] = paging.get("offset", 0) + paging.get("limit", 50)
+        
+        logger.info(f"Sincronização concluída: {total_orders} pedidos processados")
+        
+        # Contar ações realizadas
+        created_count = sum(1 for result in sync_results if result["action"] == "created")
+        updated_count = sum(1 for result in sync_results if result["action"] == "updated")
+        
+        return {
+            "success": True,
+            "message": f"Sincronização concluída com sucesso",
+            "total_processed": total_orders,
+            "total_available": total_available,
+            "created": created_count,
+            "updated": updated_count,
+            "sync_results": sync_results,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao sincronizar pedidos: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao sincronizar pedidos"
+        )
+
+@router.get("/orders/db")
+async def get_orders_from_db(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    status: Optional[str] = Query(None, description="Status do pedido"),
+    date_from: Optional[str] = Query(None, description="Data de início (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Data de fim (YYYY-MM-DD)"),
+    limit: int = Query(50, description="Número máximo de pedidos por página"),
+    offset: int = Query(0, description="Número de pedidos para pular")
+):
+    """Busca pedidos salvos no banco de dados."""
+    try:
+        logger.info(f"=== BUSCANDO PEDIDOS NO BANCO PARA EMPRESA {current_user.company_id} ===")
+        
+        # Construir query
+        query = db.query(MercadoLivreOrder).filter(
+            MercadoLivreOrder.company_id == current_user.company_id
+        )
+        
+        # Aplicar filtros se fornecidos
+        if status:
+            query = query.filter(MercadoLivreOrder.status == status)
+        
+        if date_from:
+            try:
+                date_from_obj = datetime.strptime(date_from, "%Y-%m-%d")
+                query = query.filter(MercadoLivreOrder.date_created >= date_from_obj)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Formato de data inválido. Use YYYY-MM-DD"
+                )
+        
+        if date_to:
+            try:
+                date_to_obj = datetime.strptime(date_to, "%Y-%m-%d")
+                query = query.filter(MercadoLivreOrder.date_created <= date_to_obj)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Formato de data inválido. Use YYYY-MM-DD"
+                )
+        
+        # Contar total de registros
+        total_count = query.count()
+        
+        # Aplicar paginação
+        orders = query.offset(offset).limit(limit).all()
+        
+        # Converter para dict
+        orders_data = []
+        for order in orders:
+            orders_data.append({
+                "id": order.id,
+                "order_id": order.order_id,
+                "status": order.status,
+                "total_amount": order.total_amount,
+                "paid_amount": order.paid_amount,
+                "currency_id": order.currency_id,
+                "date_created": order.date_created.isoformat() if order.date_created else None,
+                "date_closed": order.date_closed.isoformat() if order.date_closed else None,
+                "buyer": {
+                    "id": order.buyer_id,
+                    "nickname": order.buyer_nickname,
+                    "email": order.buyer_email,
+                    "first_name": order.buyer_first_name,
+                    "last_name": order.buyer_last_name,
+                    "phone": order.buyer_phone
+                },
+                "seller": {
+                    "id": order.seller_id,
+                    "nickname": order.seller_nickname,
+                    "email": order.seller_email
+                },
+                "shipping": {
+                    "id": order.shipping_id,
+                    "status": order.shipping_status,
+                    "cost": order.shipping_cost
+                },
+                "payment": {
+                    "method_id": order.payment_method_id,
+                    "type": order.payment_type,
+                    "status": order.payment_status,
+                    "installments": order.payment_installments
+                },
+                "feedback": {
+                    "sale": {
+                        "rating": order.feedback_sale_rating,
+                        "fulfilled": order.feedback_sale_fulfilled
+                    },
+                    "purchase": {
+                        "rating": order.feedback_purchase_rating,
+                        "fulfilled": order.feedback_purchase_fulfilled
+                    }
+                },
+                "ml_date_created": order.ml_date_created.isoformat() if order.ml_date_created else None,
+                "ml_last_updated": order.ml_last_updated.isoformat() if order.ml_last_updated else None
+            })
+        
+        return {
+            "success": True,
+            "orders": orders_data,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + limit < total_count
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar pedidos do banco: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Erro interno ao buscar pedidos do banco"
+        )
+
+@router.get("/orders/{order_id}")
+async def get_order_by_id(
+    order_id: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Busca um pedido específico por ID."""
+    try:
+        logger.info(f"Buscando pedido {order_id} para empresa {current_user.company_id}")
+        
+        order = db.query(MercadoLivreOrder).filter(
+            MercadoLivreOrder.company_id == current_user.company_id,
+            MercadoLivreOrder.order_id == order_id
+        ).first()
+        
+        if not order:
+            raise HTTPException(
+                status_code=404,
+                detail="Pedido não encontrado"
+            )
+        
+        order_data = {
+            "id": order.id,
+            "order_id": order.order_id,
+            "status": order.status,
+            "status_detail": order.status_detail,
+            "date_created": order.date_created.isoformat() if order.date_created else None,
+            "date_closed": order.date_closed.isoformat() if order.date_closed else None,
+            "total_amount": float(order.total_amount) if order.total_amount else 0,
+            "paid_amount": float(order.paid_amount) if order.paid_amount else None,
+            "currency_id": order.currency_id,
+            "buyer": {
+                "id": order.buyer_id,
+                "nickname": order.buyer_nickname,
+                "email": order.buyer_email,
+                "first_name": order.buyer_first_name,
+                "last_name": order.buyer_last_name,
+                "phone": order.buyer_phone
+            },
+            "seller": {
+                "id": order.seller_id,
+                "nickname": order.seller_nickname,
+                "email": order.seller_email
+            },
+            "shipping": {
+                "id": order.shipping_id,
+                "status": order.shipping_status,
+                "cost": order.shipping_cost
+            },
+            "ml_created_at": order.ml_created_at.isoformat() if order.ml_created_at else None,
+            "ml_last_updated": order.ml_last_updated.isoformat() if order.ml_last_updated else None
+        }
+        
+        return {
+            "success": True,
+            "order": order_data,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar pedido {order_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Erro interno ao buscar pedido"
+        )

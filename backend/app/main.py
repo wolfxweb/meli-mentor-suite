@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import auth, users, mercado_livre, products
 from app.database import engine, Base
-from app.models import User, Company, MercadoLivreIntegration, CatalogCompetitor, ProductAdsData  # Import models to ensure they're registered
+from app.models import User, Company, MercadoLivreIntegration, CatalogCompetitor, ProductAdsData, MercadoLivreOrder  # Import models to ensure they're registered
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -19,6 +19,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000", 
         "http://localhost:5173",
+        "https://b655661787e6.ngrok-free.app",
         "https://a7123785c466.ngrok-free.app",
         "https://9e22d3eedf0c.ngrok-free.app",
         "https://a0f0011eda59.ngrok-free.app",
