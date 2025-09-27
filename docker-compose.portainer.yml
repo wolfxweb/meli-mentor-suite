@@ -15,8 +15,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - meli_mentor_network
 
   # FastAPI Backend
   backend:
@@ -36,8 +34,6 @@ services:
     command: sh -c "pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     depends_on:
       - db
-    networks:
-      - meli_mentor_network
 
   # Frontend Build Service
   frontend-builder:
@@ -47,8 +43,6 @@ services:
       - .:/app
       - /app/node_modules
     command: sh -c "npm install && npm run build"
-    networks:
-      - meli_mentor_network
 
   # Nginx Reverse Proxy
   nginx:
@@ -62,13 +56,6 @@ services:
     depends_on:
       - backend
       - frontend-builder
-    networks:
-      - meli_mentor_network
 
 volumes:
   postgres_data_prod:
-
-networks:
-  meli_mentor_network:
-    driver: overlay
-    attachable: true
