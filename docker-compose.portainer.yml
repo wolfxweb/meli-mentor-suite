@@ -38,8 +38,7 @@ services:
     expose:
       - "8000"
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     restart: unless-stopped
     networks:
       - meli_mentor_network
