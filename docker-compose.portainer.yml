@@ -46,7 +46,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-    command: sh -c "npm install && npm run build && npx serve -s dist -l 3000"
+    command: sh -c "npm install && npm run build && npm install -g serve && serve -s dist -l 3000"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`adm.wolfx.com.br`)"
