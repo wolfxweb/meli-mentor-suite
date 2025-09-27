@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: [
       "localhost",
       "127.0.0.1",
+      "adm.wolfx.com.br",
       "b655661787e6.ngrok-free.app",
       "a7123785c466.ngrok-free.app",
       "9e22d3eedf0c.ngrok-free.app",
