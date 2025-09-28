@@ -19,6 +19,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000", 
         "http://localhost:5173",
+        "https://adm.wolfx.com.br",  # Production domain
         "https://b655661787e6.ngrok-free.app",
         "https://a7123785c466.ngrok-free.app",
         "https://9e22d3eedf0c.ngrok-free.app",

@@ -51,7 +51,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-    command: sh -c "npm install && npm run build && cd dist && python3 -m http.server 3000"
+    command: sh -c "npm install && VITE_API_URL=https://adm.wolfx.com.br npm run build && cd dist && python3 -m http.server 3000"
     networks:
       - server
     labels:
