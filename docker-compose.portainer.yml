@@ -33,7 +33,7 @@ services:
     working_dir: /app
     volumes:
       - ./backend:/app
-    command: sh -c "pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "if [ ! -f /app/.deps_installed ]; then pip install -r requirements.txt && touch /app/.deps_installed; fi && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     depends_on:
       - db
     networks:
