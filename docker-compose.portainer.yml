@@ -46,6 +46,7 @@ services:
       - "traefik.http.routers.backend.rule=Host(`adm.wolfx.com.br`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=letsencryptresolver"
+      - "traefik.http.routers.backend.priority=200"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
       - "traefik.docker.network=server"
 
@@ -66,7 +67,6 @@ services:
       - "traefik.http.routers.frontend.tls.certresolver=letsencryptresolver"
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
       - "traefik.docker.network=server"
-      - "traefik.http.routers.frontend.priority=100"
 
 volumes:
   postgres_data_marketplace:
