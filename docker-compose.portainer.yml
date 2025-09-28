@@ -25,7 +25,7 @@ services:
   backend:
     image: python:3.11-slim
     environment:
-      DATABASE_URL: postgresql://user:password@db:5432/marketplace_db
+      DATABASE_URL: postgresql://postgres:password@db:5432/marketplace_db
       SECRET_KEY: your-secret-key-change-in-production
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
